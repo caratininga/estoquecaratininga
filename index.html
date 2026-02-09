@@ -1,1015 +1,647 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { Download, FileSpreadsheet, Calculator, Calendar, Building2, MapPin, IceCream, Wine, ArrowRightLeft, ClipboardList, AlertCircle, Cloud, LogIn, LogOut, Save, RefreshCw, Upload, FileDown, Printer } from 'lucide-react';
-
-// --- FIREBASE IMPORTS ---
-import { initializeApp } from "firebase/app";
-import { getAnalytics } from "firebase/analytics";
-import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "firebase/auth";
-import { getFirestore, doc, setDoc, getDoc, updateDoc } from "firebase/firestore";
-
-// --- FIREBASE CONFIGURATION ---
-const firebaseConfig = {
-  apiKey: "AIzaSyB9p4COfv1T1DS4CV-MvGfBuGGoWA7mk98",
-  authDomain: "estoquecaratininga.firebaseapp.com",
-  projectId: "estoquecaratininga",
-  storageBucket: "estoquecaratininga.firebasestorage.app",
-  messagingSenderId: "291701383638",
-  appId: "1:291701383638:web:ab403e883f75b92bd0c477",
-  measurementId: "G-JRDWYW32Q4"
-};
-
-// --- INITIALIZE FIREBASE ---
-const app = initializeApp(firebaseConfig);
-const analytics = getAnalytics(app);
-const auth = getAuth(app);
-const db = getFirestore(app);
-
-// Utilitário para carregar script externo (SheetJS para exportar Excel)
-const useScript = (url) => {
-  useEffect(() => {
-    const script = document.createElement('script');
-    script.src = url;
-    script.async = true;
-    document.body.appendChild(script);
-    return () => {
-      document.body.removeChild(script);
-    };
-  }, [url]);
-};
-
-// --- CONSTANTES ---
-const DATES_ORDER = ['26/01', '02/02']; // Ordem cronológica das datas para cálculo de anterior
-
-// --- LISTA MESTRA DE PRODUTOS ---
-const MASTER_LIST = {
-  aguas: [
-    "AGUA COM GAS 500ML",
-    "AGUA DE COCO",
-    "AGUA SEM GAS 1,5L",
-    "AGUA SEM GAS 500ML",
-    "AGUA TONICA ANTARCTICA 350ML",
-    "AGUA TONICA SCHWEPPES 350ML"
-  ],
-  cervejas: [
-    "AMSTEL 600ML",
-    "ANTARCTICA ORIGINAL 600ML",
-    "BOHEMIA 600ML",
-    "BRAHMA CHOPP 600ML",
-    "BRAHMA DUPLO MALTE 600ML",
-    "BUDWEISER 600ML",
-    "BUDWEISER LN 330ML",
-    "CABARE ICE LN 275ML",
-    "CORONA LN 330ML",
-    "CORONITA EXTRA 220ML",
-    "EISENBAHN LATA 350ML",
-    "EISENBAHN LN 330ML",
-    "EISENBAHN LN 355ML",
-    "HEINEKEN 600ML",
-    "HEINEKEN LN 330ML",
-    "SKOL 300ML",
-    "SKOL 600ML",
-    "SKOL BEATS RED MIX LN 269ML",
-    "SKOL LATA 350ML",
-    "SOL PREMIUM LN 330ML",
-    "SPATEN 600ML",
-    "SPATEN LN 330ML",
-    "SPATEN LN 355ML",
-    "STELLA ARTOIS 600ML",
-    "STELLA ARTOIS LN 330ML",
-    "STELLA ARTOIS PURE G LN 330ML",
-    "SKOL BEATS GIN (Manuscrito)",
-    "SKOL BEATS TROPICAL (Manuscrito)"
-  ],
-  zero_energeticos: [
-    "BUDWEISER LN ZERO 330ML",
-    "CORONA ZERO LN 330ML",
-    "HEINEKEN LN ZERO 330ML",
-    "ENERG MONSTER LATA 269ML",
-    "ENERG MONSTER LATA 473ML",
-    "ENERG MONSTER MANGO LATA 269ML",
-    "ENERG MONSTER ZERO LATA 473ML",
-    "ENERG RED BULL LATA 250ML",
-    "ENERG TNT JUICE MANGO LT 269ML"
-  ],
-  refrigerantes: [
-    "CAJUINA SAO GERALDO 1L",
-    "CAJUINA SAO GERALDO 2L",
-    "CAJUINA SAO GERALDO 350ML",
-    "CAJUINA SAO GERALDO 600ML",
-    "CAJUINA SAO GERALDO ZERO 350ML",
-    "COCA-COLA 1L",
-    "COCA-COLA 2,5L",
-    "COCA-COLA 2L",
-    "COCA-COLA 600ML",
-    "COCA-COLA KS 290ML",
-    "COCA-COLA KS ZERO 290ML",
-    "COCA-COLA LATA 350ML",
-    "COCA-COLA LS 1L",
-    "COCA-COLA ZERO 1L",
-    "COCA-COLA ZERO 2L",
-    "COCA-COLA ZERO 600ML",
-    "COCA-COLA ZERO LATA 350ML",
-    "DELRIO GUARANA 1L",
-    "DELRIO GUARANA 250ML",
-    "DELRIO GUARANA 2L",
-    "DELRIO GUARANA 500ML",
-    "DELRIO LARANJA 2L",
-    "FANTA CAJU LT 350ML",
-    "FANTA LARANJA LATA 350ML",
-    "FANTA MISTERIO CHUCKY LT 350ML",
-    "FANTA UVA LATA 350ML",
-    "GRAPETTE UVA ROXA 250ML",
-    "GRAPETTE UVA VERDE 250ML",
-    "GUARANA ANTARCTICA 1,5L",
-    "GUARANA ANTARCTICA 1L",
-    "GUARANA ANTARCTICA 2L",
-    "GUARANA ANTARCTICA 600ML",
-    "GUARANA ANTARCTICA LATA 350ML",
-    "GUARANA ANTARCTICA ZERO 1L",
-    "GUARANA ANTARCTICA ZERO 2L",
-    "GUARANA ANTARCTICA ZERO 350 ML",
-    "GUARANA KUAT LATA 350ML",
-    "H2O",
-    "H2OH LIMAO 500 ML",
-    "PEPSI ZERO LATA 350ML",
-    "SCHWEPPES CITRUS LATA 350ML",
-    "SODA LIMONADA LT 350ML",
-    "SPRITE FRESH",
-    "SPRITE LATA 350ML",
-    "SPRITE ZERO LATA 350ML",
-    "SUKITA 2L"
-  ],
-  sucos: [
-    "DEL VALLE FRUT CIT 450ML",
-    "DEL VALLE FRUT LARANJA 450ML",
-    "DEL VALLE FRUT UVA 450ML",
-    "DELRIO ABACAXI 250ML",
-    "DELRIO CAJU 250ML"
-  ],
-  sobremesas: [
-    "Petit Gateau", "Torta Limão", "Mousse Maracujá", "Brownie Chocolate", "Brownie Ninho", "Pudim"
-  ],
-  destilados: [
-    "Campari", "Dreher", "Velho Barreiro", "Ypioca Ouro", "Ypioca Prata", "Orloff", "Slova",
-    "Vinho Gaúcho Seco", "Vinho Gaúcho Suave", "Red Label", "Malibu", "Cavalo Branco", "Black White", "Vinho Pérgola",
-    "Ypioca Empalhada", "Ypioca 150", "Vinho Quintado Morgado Seco", "Vinho Quintado Morgado Suave", "Vinho Quintado Morgado Suave Verde", "Vinho Quinto (Suave)",
-    "Tequila", "Cachaça 51", "Gin Seagers", "Gin Rocks", "Old Parr", "Smirnoff", "Domecq",
-    "Black Label", "Pitu", "Martini Bianco", "Espumante Salton", "Espumante Chandon", "Cointreau",
-    "Tanqueray", "Ballantines", "Fogo Paulista", "Bulcanos (Buchanans)", "Jack Daniels",
-    "Vodka Skyy", "Vinho Reservado", "Stock Blue", "Casillero del Diablo"
-  ],
-  picoles: [
-    "Excelência Pistache", "Excelência Petit Gateau", "Excelência Morango do Nordeste", "Excelência Morango", "Excelência Cookies and Cream",
-    "Quick Brigadeiro", "Quick Leite Condensado", "Quick Bel Laka", "Quick Sublime", "Quick Coco Branco",
-    "Quick Morango", "Quick Chocolate", "Quick Skimo", "Quick Cone", "Quick Chocobarra", "Quick Uka", "Quick Uva",
-    "Quick Limão", "Quick Sundae", "Quick Castanha de Pará", "Quick Castanha de Caju", "Açaí com Leite", "Quick Açaí Guaraná", "Ninho Trufado", "Tapioca", "Groselha"
-  ],
-  jarras_tacas: [
-    "Copo Nadir", "Copo Longo", "Taça Cristal", "Copo Whisky", "Taça Martini", "Taça Coquetel",
-    "Taça Piscina", "Copo Americano", "Copo Caipirinha", "Taça Vinho", "Taça Espumante",
-    "Jarra Grande", "Jarra Média"
-  ]
-};
-
-// --- FUNÇÃO PARA GERAR DADOS VAZIOS ---
-const generateCompleteDataSet = (master, values = {}, responsavel = "-", unidade = "-") => {
-  const dataset = { responsavel, unidade };
-  
-  // Categorias Grid
-  ['aguas', 'cervejas', 'zero_energeticos', 'refrigerantes', 'sucos'].forEach(cat => {
-    dataset[cat] = master[cat].map(itemName => {
-      const vals = values[cat]?.[itemName] || {};
-      return { 
-        nome: itemName, 
-        l1: vals.l1 || 0, 
-        l2: vals.l2 || 0, 
-        l3: vals.l3 || 0, 
-        l4: vals.l4 || 0 
-      };
-    });
-  });
-
-  // Categorias Lista Simples
-  ['sobremesas', 'destilados', 'picoles', 'jarras_tacas'].forEach(cat => {
-    if (!master[cat]) return;
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Controle de Estoque - Multilojas</title>
     
-    dataset[cat] = master[cat].map(itemName => {
-      const qtd = values[cat]?.[itemName] || 0;
-      return { nome: itemName, qtd };
-    });
-  });
-
-  return dataset;
-};
-
-// Componente Seção de Contagem
-const Section = ({ title, data, category, onUpdate, type = "grid" }) => {
-  if (!data || data.length === 0) return null;
-
-  return (
-    <div className="mb-8 bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden break-inside-avoid">
-      <div className="bg-gray-50 px-6 py-4 border-b border-gray-200">
-        <h3 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
-          {title}
-          <span className="text-xs font-normal text-gray-500 bg-gray-200 px-2 py-1 rounded-full print:hidden">
-            {data.length} itens
-          </span>
-        </h3>
-      </div>
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm text-left">
-          <thead className="text-xs text-gray-700 uppercase bg-gray-50">
-            {type === "grid" ? (
-              <tr>
-                <th className="px-6 py-3 w-1/3">Produto</th>
-                <th className="px-4 py-3 text-center bg-blue-50 print:bg-transparent">Local 1</th>
-                <th className="px-4 py-3 text-center bg-green-50 print:bg-transparent">Local 2</th>
-                <th className="px-4 py-3 text-center bg-yellow-50 print:bg-transparent">Local 3</th>
-                <th className="px-4 py-3 text-center bg-purple-50 print:bg-transparent">Local 4</th>
-                <th className="px-6 py-3 text-center font-bold bg-gray-100 print:bg-transparent">Total</th>
-              </tr>
-            ) : (
-              <tr>
-                <th className="px-6 py-3 w-2/3">Produto</th>
-                <th className="px-6 py-3 text-center w-1/3 font-bold bg-gray-100 print:bg-transparent">Quantidade</th>
-              </tr>
-            )}
-          </thead>
-          <tbody className="divide-y divide-gray-100">
-            {data.map((item, index) => {
-              const total = type === "grid" 
-                ? (parseInt(item.l1 || 0) + parseInt(item.l2 || 0) + parseInt(item.l3 || 0) + parseInt(item.l4 || 0))
-                : item.qtd;
-
-              const isZero = total === 0;
-
-              return (
-                <tr key={index} className={`transition-colors ${isZero ? 'bg-white opacity-60 hover:opacity-100' : 'bg-white hover:bg-gray-50'}`}>
-                  <td className="px-6 py-3 font-medium text-gray-900">{item.nome}</td>
-                  
-                  {type === "grid" ? (
-                    <>
-                      {['l1', 'l2', 'l3', 'l4'].map(local => (
-                        <td key={local} className="px-2 py-2 text-center">
-                          <input
-                            type="number"
-                            min="0"
-                            className={`w-16 text-center border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm bg-transparent hover:bg-white print:border-none print:w-auto ${item[local] > 0 ? 'font-bold text-gray-900' : 'text-gray-400'}`}
-                            value={item[local]}
-                            onChange={(e) => onUpdate(category, index, local, e.target.value)}
-                          />
-                        </td>
-                      ))}
-                      <td className={`px-6 py-3 text-center font-bold bg-gray-50 print:bg-transparent ${isZero ? 'text-gray-400' : 'text-blue-600'}`}>
-                        {total}
-                      </td>
-                    </>
-                  ) : (
-                    <td className="px-6 py-3 text-center">
-                      <input
-                        type="number"
-                        min="0"
-                        className={`w-24 text-center border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm bg-gray-50 font-bold print:border-none print:w-auto ${item.qtd > 0 ? 'text-blue-600' : 'text-gray-400'}`}
-                        value={item.qtd}
-                        onChange={(e) => onUpdate(category, index, 'qtd', e.target.value)}
-                      />
-                    </td>
-                  )}
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
-};
-
-// Componente Seção de Controle
-const ControlSection = ({ title, data, category, stockFlowData, previousStockData, onFlowUpdate, previousDateLabel, type = "grid" }) => {
-  if (!data || data.length === 0) return null;
-
-  return (
-    <div className="mb-8 bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden break-inside-avoid">
-      <div className="bg-gray-50 px-6 py-4 border-b border-gray-200">
-        <h3 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
-          {title}
-          <span className="text-xs font-normal text-gray-500 bg-gray-200 px-2 py-1 rounded-full print:hidden">
-            Controle & Divergência
-          </span>
-        </h3>
-      </div>
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm text-left">
-          <thead className="text-xs text-gray-700 uppercase bg-gray-50">
-            <tr>
-              <th className="px-6 py-3 w-1/4">Produto</th>
-              <th className="px-4 py-3 text-center w-1/12 bg-gray-100 font-semibold text-gray-700 print:bg-transparent">
-                Anterior
-                {previousDateLabel && <span className="block text-[10px] text-gray-500 font-normal">({previousDateLabel})</span>}
-              </th>
-              <th className="px-4 py-3 text-center w-1/12 bg-blue-50 print:bg-transparent">Entrada (+)</th>
-              <th className="px-4 py-3 text-center w-1/12 bg-red-50 print:bg-transparent">Saída (-)</th>
-              <th className="px-4 py-3 text-center w-1/12 bg-gray-100 font-bold text-gray-600 print:bg-transparent">Teórico (=)</th>
-              <th className="px-4 py-3 text-center w-1/12 bg-gray-100 font-bold text-blue-600 print:bg-transparent">Contado</th>
-              <th className="px-4 py-3 text-center w-1/12 font-bold">Divergência</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-100">
-            {data.map((item, index) => {
-              const countedTotal = type === "grid" 
-                ? (parseInt(item.l1 || 0) + parseInt(item.l2 || 0) + parseInt(item.l3 || 0) + parseInt(item.l4 || 0))
-                : item.qtd;
-
-              const flow = stockFlowData?.[item.nome] || { entry: 0, exit: 0 };
-              const prevStock = previousStockData?.[item.nome] || 0;
-              const expected = (prevStock + (flow.entry || 0)) - (flow.exit || 0);
-              const divergence = countedTotal - expected;
-
-              let divColor = "text-gray-400";
-              if (divergence < 0) divColor = "text-red-600 font-bold bg-red-50 print:bg-transparent";
-              if (divergence > 0) divColor = "text-blue-600 font-bold bg-blue-50 print:bg-transparent";
-
-              return (
-                <tr key={index} className="hover:bg-gray-50 transition-colors">
-                  <td className="px-6 py-3 font-medium text-gray-900">{item.nome}</td>
-                  
-                  {/* Anterior */}
-                  <td className="px-4 py-3 text-center text-gray-600 bg-gray-50 border-r border-gray-100 print:bg-transparent">
-                    {prevStock}
-                  </td>
-
-                  {/* Entrada */}
-                  <td className="px-2 py-2 text-center bg-blue-50/30 print:bg-transparent">
-                    <input
-                      type="number"
-                      min="0"
-                      placeholder="0"
-                      className="w-20 text-center border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm bg-white print:border-none print:w-auto"
-                      value={flow.entry || ''}
-                      onChange={(e) => onFlowUpdate(category, item.nome, 'entry', e.target.value)}
-                    />
-                  </td>
-
-                  {/* Saída */}
-                  <td className="px-2 py-2 text-center bg-red-50/30 print:bg-transparent">
-                    <input
-                      type="number"
-                      min="0"
-                      placeholder="0"
-                      className="w-20 text-center border-gray-300 rounded-md shadow-sm focus:ring-red-500 focus:border-red-500 sm:text-sm bg-white print:border-none print:w-auto"
-                      value={flow.exit || ''}
-                      onChange={(e) => onFlowUpdate(category, item.nome, 'exit', e.target.value)}
-                    />
-                  </td>
-
-                  {/* Teórico */}
-                  <td className="px-4 py-3 text-center font-bold text-gray-500 bg-gray-50 print:bg-transparent">
-                    {expected}
-                  </td>
-
-                  {/* Contado (Real) */}
-                  <td className="px-4 py-3 text-center font-bold text-blue-600 bg-gray-100 border-l border-r border-gray-200 print:bg-transparent">
-                    {countedTotal}
-                  </td>
-
-                  {/* Divergência */}
-                  <td className={`px-4 py-3 text-center ${divColor}`}>
-                    {divergence > 0 ? `+${divergence}` : divergence}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
-};
-
-// Componente Login Modal
-const LoginModal = ({ isOpen, onClose, onLogin }) => {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
-
-  if (!isOpen) return null;
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setError('');
-    try {
-      await onLogin(email, password);
-      onClose();
-    } catch (err) {
-      setError("Falha no login: Verifique suas credenciais.");
-      console.error(err);
-    }
-  };
-
-  return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg p-8 w-96 shadow-xl">
-        <h2 className="text-2xl font-bold mb-6 text-gray-800 flex items-center gap-2">
-          <LogIn size={24} className="text-blue-600"/> Acesso Restrito
-        </h2>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700">Email</label>
-            <input 
-              type="email" 
-              required
-              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 p-2 border"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700">Senha</label>
-            <input 
-              type="password" 
-              required
-              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 p-2 border"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-            />
-          </div>
-          {error && <p className="text-red-500 text-sm">{error}</p>}
-          <div className="flex justify-end gap-2 mt-6">
-            <button 
-              type="button" 
-              onClick={onClose}
-              className="px-4 py-2 text-gray-600 hover:text-gray-800"
-            >
-              Cancelar
-            </button>
-            <button 
-              type="submit"
-              className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-            >
-              Entrar
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-  );
-};
-
-export default function App() {
-  useScript("https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js");
-  const fileInputRef = useRef(null);
-  
-  const [selectedLocation, setSelectedLocation] = useState('Tianguá');
-  const [selectedDate, setSelectedDate] = useState('02/02');
-  const [viewMode, setViewMode] = useState('counting'); 
-  
-  // Auth & Cloud State
-  const [user, setUser] = useState(null);
-  const [isLoginOpen, setIsLoginOpen] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
-  
-  // Data State
-  const [stockFlow, setStockFlow] = useState({});
-  const [dataSets, setDataSets] = useState({}); 
-
-  // --- AUTH EFFECT ---
-  useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-      setUser(currentUser);
-      if (currentUser) {
-        handleLoadFromCloud();
-      }
-    });
-    return () => unsubscribe();
-  }, []);
-
-  const handleLogin = async (email, password) => {
-    await signInWithEmailAndPassword(auth, email, password);
-  };
-
-  const handleLogout = async () => {
-    await signOut(auth);
-    setDataSets({}); 
-    setStockFlow({});
-    alert("Desconectado com sucesso.");
-  };
-
-  const handleLoadFromCloud = async () => {
-    setIsLoading(true);
-    try {
-      const docRef = doc(db, "estoque", "geral");
-      const docSnap = await getDoc(docRef);
-
-      if (docSnap.exists()) {
-        const data = docSnap.data();
-        if (data.dataSets) setDataSets(data.dataSets);
-        if (data.stockFlow) setStockFlow(data.stockFlow);
-        console.log("Dados carregados da nuvem.");
-      } else {
-        await setDoc(docRef, { dataSets: {}, stockFlow: {} });
-        console.log("Nenhum dado encontrado na nuvem. Criado documento inicial.");
-      }
-    } catch (error) {
-      console.error("Error getting document: ", error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const getDatasetKey = (loc, date) => {
-    const locMap = { 'Matriz': 'matriz', 'Mucambo': 'mucambo', 'Tianguá': 'tiangua' };
-    const dateMap = { '26/01': '26_01', '02/02': '02_02' };
-    return `${locMap[loc]}_${dateMap[date]}`;
-  };
-
-  // Helper para buscar dados de estoque da data anterior
-  const getPreviousStockValues = (location, currentDate, allDataSets) => {
-    const currentIndex = DATES_ORDER.indexOf(currentDate);
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
     
-    // Se for a primeira data ou data desconhecida, não tem estoque anterior
-    if (currentIndex <= 0) return {}; 
+    <!-- SheetJS (XLSX) -->
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"></script>
 
-    const prevDate = DATES_ORDER[currentIndex - 1];
-    const prevKey = getDatasetKey(location, prevDate);
-    const prevData = allDataSets[prevKey];
-
-    if (!prevData) return {}; 
-
-    const stockMap = {};
-    const categories = ['aguas', 'cervejas', 'zero_energeticos', 'refrigerantes', 'sucos', 'sobremesas', 'destilados', 'picoles', 'jarras_tacas'];
+    <!-- React & ReactDOM -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
     
-    categories.forEach(cat => {
-        if (prevData[cat]) {
-            prevData[cat].forEach(item => {
-                const total = (item.l1 || 0) + (item.l2 || 0) + (item.l3 || 0) + (item.l4 || 0) + (item.qtd || 0);
-                stockMap[item.nome] = total;
-            });
+    <!-- Babel para compilar JSX no navegador -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <style>
+        @media print {
+            @page { margin: 0.5cm; }
+            body { -webkit-print-color-adjust: exact; }
         }
-    });
+    </style>
+</head>
+<body class="bg-slate-50 font-sans text-slate-800">
+    <div id="root"></div>
 
-    return stockMap;
-  };
+    <script type="text/babel" data-type="module">
+        import React, { useState, useEffect, useRef } from 'https://esm.sh/react@18.2.0';
+        import { createRoot } from 'https://esm.sh/react-dom@18.2.0/client';
+        import { 
+            Download, FileSpreadsheet, Calculator, Calendar, Building2, MapPin, 
+            IceCream, Wine, ArrowRightLeft, ClipboardList, AlertCircle, Cloud, 
+            LogIn, LogOut, Save, RefreshCw, Upload, FileDown, Printer 
+        } from 'https://esm.sh/lucide-react@0.292.0';
 
-  const getPreviousDateLabel = (current) => {
-    const idx = DATES_ORDER.indexOf(current);
-    if (idx > 0) return DATES_ORDER[idx - 1];
-    return null;
-  };
+        // --- FIREBASE IMPORTS ---
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+        import { getAnalytics } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-analytics.js";
+        import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+        import { getFirestore, doc, setDoc, getDoc, updateDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
-  const currentKey = getDatasetKey(selectedLocation, selectedDate);
-  const currentData = dataSets[currentKey] || generateCompleteDataSet(MASTER_LIST, {}, "-", selectedLocation);
-  const currentFlowData = stockFlow[currentKey] || {};
-  const previousStockData = getPreviousStockValues(selectedLocation, selectedDate, dataSets);
-  const previousDateLabel = getPreviousDateLabel(selectedDate);
-
-  const handleUpdate = (category, index, field, value) => {
-    const val = value === '' ? 0 : parseInt(value);
-    
-    const baseData = dataSets[currentKey] || generateCompleteDataSet(MASTER_LIST, {}, "-", selectedLocation);
-
-    const updatedCategory = baseData[category].map((item, i) => 
-      i === index ? { ...item, [field]: val } : item
-    );
-
-    const newDataSets = {
-      ...dataSets,
-      [currentKey]: {
-        ...baseData,
-        [category]: updatedCategory
-      }
-    };
-    setDataSets(newDataSets);
-    
-    if (user) {
-        const updatePayload = {};
-        updatePayload[`dataSets.${currentKey}`] = newDataSets[currentKey];
-        updatePayload['lastUpdated'] = new Date().toISOString();
-        updatePayload['updatedBy'] = user.email;
-
-        updateDoc(doc(db, "estoque", "geral"), updatePayload).catch(e => console.error("Falha ao salvar contagem", e));
-    }
-  };
-
-  const handleFlowUpdate = (category, productName, type, value) => {
-    const val = value === '' ? 0 : parseInt(value);
-    
-    const newStockFlow = {
-      ...stockFlow,
-      [currentKey]: {
-        ...stockFlow[currentKey],
-        [category]: {
-          ...stockFlow[currentKey]?.[category],
-          [productName]: {
-            ...stockFlow[currentKey]?.[category]?.[productName],
-            [type]: val
-          }
-        }
-      }
-    };
-    
-    setStockFlow(newStockFlow);
-
-    if (user) {
-        const updatePayload = {};
-        updatePayload[`stockFlow.${currentKey}`] = newStockFlow[currentKey];
-        updatePayload['lastUpdated'] = new Date().toISOString();
-        
-        updateDoc(doc(db, "estoque", "geral"), updatePayload).catch(e => console.error("Falha ao salvar fluxo", e));
-    }
-  };
-
-  const handleDownloadTemplate = () => {
-    if (!window.XLSX) {
-      alert("Biblioteca XLSX não carregada. Tente novamente.");
-      return;
-    }
-
-    const rows = [];
-    rows.push(["CATEGORIA", "PRODUTO", "ENTRADA", "SAIDA"]);
-
-    const categories = [
-        { key: 'aguas', label: 'ÁGUAS' },
-        { key: 'cervejas', label: 'CERVEJAS' },
-        { key: 'zero_energeticos', label: 'ZERO & ENERGÉTICOS' },
-        { key: 'refrigerantes', label: 'REFRIGERANTES' },
-        { key: 'sucos', label: 'SUCOS' },
-        { key: 'sobremesas', label: 'SOBREMESAS' },
-        { key: 'destilados', label: 'DESTILADOS' },
-        { key: 'picoles', label: 'PICOLÉS' },
-        { key: 'jarras_tacas', label: 'JARRAS E TAÇAS' }
-    ];
-
-    categories.forEach(cat => {
-        if(MASTER_LIST[cat.key]) {
-            MASTER_LIST[cat.key].forEach(product => {
-                rows.push([cat.label, product, "", ""]);
-            });
-        }
-    });
-
-    const wb = window.XLSX.utils.book_new();
-    const ws = window.XLSX.utils.aoa_to_sheet(rows);
-    ws['!cols'] = [{ wch: 20 }, { wch: 40 }, { wch: 10 }, { wch: 10 }];
-    window.XLSX.utils.book_append_sheet(wb, ws, "Modelo Entrada e Saída");
-    window.XLSX.writeFile(wb, "Modelo_Movimentacao_Estoque.xlsx");
-  };
-
-  const handleFileUpload = (e) => {
-    if (!window.XLSX) return;
-    const file = e.target.files[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = (evt) => {
-        const bstr = evt.target.result;
-        const wb = window.XLSX.read(bstr, { type: 'binary' });
-        const wsname = wb.SheetNames[0];
-        const ws = wb.Sheets[wsname];
-        const data = window.XLSX.utils.sheet_to_json(ws);
-
-        const newFlowData = { ...stockFlow[currentKey] };
-
-        data.forEach(row => {
-            const produto = row["PRODUTO"];
-            const entrada = row["ENTRADA"] ? parseInt(row["ENTRADA"]) : 0;
-            const saida = row["SAIDA"] ? parseInt(row["SAIDA"]) : 0;
-
-            if (produto) {
-                let categoryKey = null;
-                for (const [key, list] of Object.entries(MASTER_LIST)) {
-                    if (list.includes(produto)) {
-                        categoryKey = key;
-                        break;
-                    }
-                }
-
-                if (categoryKey) {
-                    if (!newFlowData[categoryKey]) newFlowData[categoryKey] = {};
-                    if (!newFlowData[categoryKey][produto]) newFlowData[categoryKey][produto] = {};
-                    
-                    newFlowData[categoryKey][produto].entry = entrada;
-                    newFlowData[categoryKey][produto].exit = saida;
-                }
-            }
-        });
-
-        const updatedStockFlow = {
-            ...stockFlow,
-            [currentKey]: newFlowData
+        // --- FIREBASE CONFIGURATION ---
+        const firebaseConfig = {
+            apiKey: "AIzaSyB9p4COfv1T1DS4CV-MvGfBuGGoWA7mk98",
+            authDomain: "estoquecaratininga.firebaseapp.com",
+            projectId: "estoquecaratininga",
+            storageBucket: "estoquecaratininga.firebasestorage.app",
+            messagingSenderId: "291701383638",
+            appId: "1:291701383638:web:ab403e883f75b92bd0c477",
+            measurementId: "G-JRDWYW32Q4"
         };
-        setStockFlow(updatedStockFlow);
-        
-        if (user) {
-            const updatePayload = {};
-            updatePayload[`stockFlow.${currentKey}`] = newFlowData;
+
+        // --- INITIALIZE FIREBASE ---
+        const app = initializeApp(firebaseConfig);
+        const analytics = getAnalytics(app);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+
+        // --- CONSTANTES ---
+        const DATES_ORDER = ['26/01', '02/02']; 
+
+        // --- LISTA MESTRA DE PRODUTOS ---
+        const MASTER_LIST = {
+            aguas: [
+                "AGUA COM GAS 500ML", "AGUA DE COCO", "AGUA SEM GAS 1,5L", "AGUA SEM GAS 500ML", 
+                "AGUA TONICA ANTARCTICA 350ML", "AGUA TONICA SCHWEPPES 350ML"
+            ],
+            cervejas: [
+                "AMSTEL 600ML", "ANTARCTICA ORIGINAL 600ML", "BOHEMIA 600ML", "BRAHMA CHOPP 600ML", 
+                "BRAHMA DUPLO MALTE 600ML", "BUDWEISER 600ML", "BUDWEISER LN 330ML", "CABARE ICE LN 275ML", 
+                "CORONA LN 330ML", "CORONITA EXTRA 220ML", "EISENBAHN LATA 350ML", "EISENBAHN LN 330ML", 
+                "EISENBAHN LN 355ML", "HEINEKEN 600ML", "HEINEKEN LN 330ML", "SKOL 300ML", "SKOL 600ML", 
+                "SKOL BEATS RED MIX LN 269ML", "SKOL LATA 350ML", "SOL PREMIUM LN 330ML", "SPATEN 600ML", 
+                "SPATEN LN 330ML", "SPATEN LN 355ML", "STELLA ARTOIS 600ML", "STELLA ARTOIS LN 330ML", 
+                "STELLA ARTOIS PURE G LN 330ML", "SKOL BEATS GIN (Manuscrito)", "SKOL BEATS TROPICAL (Manuscrito)"
+            ],
+            zero_energeticos: [
+                "BUDWEISER LN ZERO 330ML", "CORONA ZERO LN 330ML", "HEINEKEN LN ZERO 330ML", 
+                "ENERG MONSTER LATA 269ML", "ENERG MONSTER LATA 473ML", "ENERG MONSTER MANGO LATA 269ML", 
+                "ENERG MONSTER ZERO LATA 473ML", "ENERG RED BULL LATA 250ML", "ENERG TNT JUICE MANGO LT 269ML"
+            ],
+            refrigerantes: [
+                "CAJUINA SAO GERALDO 1L", "CAJUINA SAO GERALDO 2L", "CAJUINA SAO GERALDO 350ML", 
+                "CAJUINA SAO GERALDO 600ML", "CAJUINA SAO GERALDO ZERO 350ML", "COCA-COLA 1L", 
+                "COCA-COLA 2,5L", "COCA-COLA 2L", "COCA-COLA 600ML", "COCA-COLA KS 290ML", 
+                "COCA-COLA KS ZERO 290ML", "COCA-COLA LATA 350ML", "COCA-COLA LS 1L", "COCA-COLA ZERO 1L", 
+                "COCA-COLA ZERO 2L", "COCA-COLA ZERO 600ML", "COCA-COLA ZERO LATA 350ML", "DELRIO GUARANA 1L", 
+                "DELRIO GUARANA 250ML", "DELRIO GUARANA 2L", "DELRIO GUARANA 500ML", "DELRIO LARANJA 2L", 
+                "FANTA CAJU LT 350ML", "FANTA LARANJA LATA 350ML", "FANTA MISTERIO CHUCKY LT 350ML", 
+                "FANTA UVA LATA 350ML", "GRAPETTE UVA ROXA 250ML", "GRAPETTE UVA VERDE 250ML", 
+                "GUARANA ANTARCTICA 1,5L", "GUARANA ANTARCTICA 1L", "GUARANA ANTARCTICA 2L", 
+                "GUARANA ANTARCTICA 600ML", "GUARANA ANTARCTICA LATA 350ML", "GUARANA ANTARCTICA ZERO 1L", 
+                "GUARANA ANTARCTICA ZERO 2L", "GUARANA ANTARCTICA ZERO 350 ML", "GUARANA KUAT LATA 350ML", 
+                "H2O", "H2OH LIMAO 500 ML", "PEPSI ZERO LATA 350ML", "SCHWEPPES CITRUS LATA 350ML", 
+                "SODA LIMONADA LT 350ML", "SPRITE FRESH", "SPRITE LATA 350ML", "SPRITE ZERO LATA 350ML", "SUKITA 2L"
+            ],
+            sucos: [
+                "DEL VALLE FRUT CIT 450ML", "DEL VALLE FRUT LARANJA 450ML", "DEL VALLE FRUT UVA 450ML", 
+                "DELRIO ABACAXI 250ML", "DELRIO CAJU 250ML"
+            ],
+            sobremesas: [
+                "Petit Gateau", "Torta Limão", "Mousse Maracujá", "Brownie Chocolate", "Brownie Ninho", "Pudim"
+            ],
+            destilados: [
+                "Campari", "Dreher", "Velho Barreiro", "Ypioca Ouro", "Ypioca Prata", "Orloff", "Slova", 
+                "Vinho Gaúcho Seco", "Vinho Gaúcho Suave", "Red Label", "Malibu", "Cavalo Branco", "Black White", 
+                "Vinho Pérgola", "Ypioca Empalhada", "Ypioca 150", "Vinho Quintado Morgado Seco", 
+                "Vinho Quintado Morgado Suave", "Vinho Quintado Morgado Suave Verde", "Vinho Quinto (Suave)", 
+                "Tequila", "Cachaça 51", "Gin Seagers", "Gin Rocks", "Old Parr", "Smirnoff", "Domecq", 
+                "Black Label", "Pitu", "Martini Bianco", "Espumante Salton", "Espumante Chandon", "Cointreau", 
+                "Tanqueray", "Ballantines", "Fogo Paulista", "Bulcanos (Buchanans)", "Jack Daniels", 
+                "Vodka Skyy", "Vinho Reservado", "Stock Blue", "Casillero del Diablo"
+            ],
+            picoles: [
+                "Excelência Pistache", "Excelência Petit Gateau", "Excelência Morango do Nordeste", "Excelência Morango", 
+                "Excelência Cookies and Cream", "Quick Brigadeiro", "Quick Leite Condensado", "Quick Bel Laka", 
+                "Quick Sublime", "Quick Coco Branco", "Quick Morango", "Quick Chocolate", "Quick Skimo", 
+                "Quick Cone", "Quick Chocobarra", "Quick Uka", "Quick Uva", "Quick Limão", "Quick Sundae", 
+                "Quick Castanha de Pará", "Quick Castanha de Caju", "Açaí com Leite", "Quick Açaí Guaraná", 
+                "Ninho Trufado", "Tapioca", "Groselha"
+            ],
+            jarras_tacas: [
+                "Copo Nadir", "Copo Longo", "Taça Cristal", "Copo Whisky", "Taça Martini", "Taça Coquetel", 
+                "Taça Piscina", "Copo Americano", "Copo Caipirinha", "Taça Vinho", "Taça Espumante", 
+                "Jarra Grande", "Jarra Média"
+            ]
+        };
+
+        // --- FUNÇÃO PARA GERAR DADOS VAZIOS ---
+        const generateCompleteDataSet = (master, values = {}, responsavel = "-", unidade = "-") => {
+            const dataset = { responsavel, unidade };
             
-            updateDoc(doc(db, "estoque", "geral"), updatePayload)
-                .then(() => alert("Importação realizada e salva na nuvem com sucesso!"))
-                .catch(e => {
-                    console.error("Erro ao salvar upload", e);
-                    alert("Erro ao salvar na nuvem. Verifique sua conexão.");
+            ['aguas', 'cervejas', 'zero_energeticos', 'refrigerantes', 'sucos'].forEach(cat => {
+                dataset[cat] = master[cat].map(itemName => {
+                    const vals = values[cat]?.[itemName] || {};
+                    return { 
+                        nome: itemName, 
+                        l1: vals.l1 || 0, 
+                        l2: vals.l2 || 0, 
+                        l3: vals.l3 || 0, 
+                        l4: vals.l4 || 0 
+                    };
                 });
-        } else {
-            alert("Importado apenas localmente. Faça login para salvar.");
-        }
-        
-        if(fileInputRef.current) fileInputRef.current.value = "";
-    };
-    reader.readAsBinaryString(file);
-  };
+            });
 
-  const exportToExcel = () => {
-    if (!window.XLSX) {
-      alert("A biblioteca de exportação ainda está carregando. Tente novamente em alguns segundos.");
-      return;
-    }
+            ['sobremesas', 'destilados', 'picoles', 'jarras_tacas'].forEach(cat => {
+                if (!master[cat]) return;
+                dataset[cat] = master[cat].map(itemName => {
+                    const qtd = values[cat]?.[itemName] || 0;
+                    return { nome: itemName, qtd };
+                });
+            });
 
-    const wb = window.XLSX.utils.book_new();
-    const mainRows = [];
-    
-    mainRows.push([`RELATÓRIO DE ESTOQUE - ${selectedLocation.toUpperCase()}`, "", "", "", "", "", "", ""]);
-    mainRows.push([`Data: ${selectedDate}/26`, "", `Responsável: ${currentData.responsavel || '-'}`, "", "", "", "", ""]);
-    mainRows.push([""]);
+            return dataset;
+        };
 
-    if (viewMode === 'control') {
-        mainRows.push(["CATEGORIA", "PRODUTO", "ANTERIOR", "ENTRADA", "SAÍDA", "TEÓRICO", "CONTADO", "DIVERGÊNCIA"]);
-    } else {
-        mainRows.push(["CATEGORIA", "PRODUTO", "LOCAL 1", "LOCAL 2", "LOCAL 3", "LOCAL 4", "TOTAL"]);
-    }
+        // --- COMPONENTES ---
 
-    const allCategories = [
-      { key: 'aguas', label: 'ÁGUAS' },
-      { key: 'cervejas', label: 'CERVEJAS' },
-      { key: 'zero_energeticos', label: 'ZERO & ENERGÉTICOS' },
-      { key: 'refrigerantes', label: 'REFRIGERANTES' },
-      { key: 'sucos', label: 'SUCOS' },
-      { key: 'sobremesas', label: 'SOBREMESAS' },
-      { key: 'destilados', label: 'DESTILADOS' },
-      { key: 'picoles', label: 'PICOLÉS' },
-      { key: 'jarras_tacas', label: 'JARRAS E TAÇAS' }
-    ];
+        const Section = ({ title, data, category, onUpdate, type = "grid" }) => {
+            if (!data || data.length === 0) return null;
 
-    allCategories.forEach(cat => {
-      const itemList = currentData[cat.key] && currentData[cat.key].length > 0 ? currentData[cat.key] : MASTER_LIST[cat.key].map(name => ({ nome: name, l1:0, l2:0, l3:0, l4:0, qtd:0 }));
-
-      if (!itemList) return;
-
-      itemList.forEach(item => {
-        const isGrid = ['aguas', 'cervejas', 'zero_energeticos', 'refrigerantes', 'sucos'].includes(cat.key);
-        const countedTotal = isGrid 
-            ? (parseInt(item.l1 || 0) + parseInt(item.l2 || 0) + parseInt(item.l3 || 0) + parseInt(item.l4 || 0))
-            : parseInt(item.qtd || 0);
-
-        if (viewMode === 'control') {
-            const flow = currentFlowData?.[cat.key]?.[item.nome] || { entry: 0, exit: 0 };
-            const prevStock = previousStockData?.[item.nome] || 0;
-            const expected = (prevStock + parseInt(flow.entry || 0)) - parseInt(flow.exit || 0);
-            const divergence = countedTotal - expected;
-            mainRows.push([cat.label, item.nome, prevStock, flow.entry || 0, flow.exit || 0, expected, countedTotal, divergence]);
-        } else {
-            if (isGrid) {
-                mainRows.push([cat.label, item.nome, item.l1 || 0, item.l2 || 0, item.l3 || 0, item.l4 || 0, countedTotal]);
-            } else {
-                mainRows.push([cat.label, item.nome, "-", "-", "-", "-", countedTotal]);
-            }
-        }
-      });
-    });
-
-    const wsMain = window.XLSX.utils.aoa_to_sheet(mainRows);
-    wsMain['!cols'] = [{ wch: 20 }, { wch: 40 }, { wch: 10 }, { wch: 10 }, { wch: 10 }, { wch: 10 }, { wch: 10 }, { wch: 10 }];
-    
-    window.XLSX.utils.book_append_sheet(wb, wsMain, "Relatório Geral");
-    window.XLSX.writeFile(wb, `Estoque_${viewMode}_${selectedLocation}_${selectedDate.replace(/\//g, '-')}.xlsx`);
-  };
-
-  const handlePrint = () => {
-    window.print();
-  };
-
-  const LocationButton = ({ name }) => (
-    <button
-      onClick={() => { setSelectedLocation(name); setSelectedDate('02/02'); }} 
-      className={`flex items-center gap-2 px-4 py-3 rounded-lg font-medium transition-all print:hidden ${
-        selectedLocation === name
-          ? 'bg-blue-600 text-white shadow-md ring-2 ring-blue-600 ring-offset-2' 
-          : 'bg-white text-slate-600 hover:bg-slate-50 border border-slate-200'
-      }`}
-    >
-      <Building2 size={18} />
-      {name}
-    </button>
-  );
-
-  const DateButton = ({ date, disabled }) => (
-    <button
-      onClick={() => !disabled && setSelectedDate(date)}
-      disabled={disabled}
-      className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-all print:hidden ${
-        selectedDate === date
-          ? 'bg-blue-100 text-blue-700 border border-blue-200'
-          : disabled 
-            ? 'opacity-40 cursor-not-allowed text-slate-400'
-            : 'text-slate-500 hover:bg-slate-100'
-      }`}
-    >
-      <Calendar size={14} />
-      {date}
-    </button>
-  );
-
-  return (
-    <div className="min-h-screen bg-slate-50 font-sans text-slate-800 print:bg-white">
-      <LoginModal isOpen={isLoginOpen} onClose={() => setIsLoginOpen(false)} onLogin={handleLogin} />
-      
-      <header className="bg-white border-b border-slate-200 sticky top-0 z-10 shadow-sm print:hidden">
-        <div className="max-w-7xl mx-auto px-4 py-4">
-          <div className="flex flex-col xl:flex-row justify-between items-center gap-6">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-blue-100 rounded-lg text-blue-600">
-                <FileSpreadsheet size={24} />
-              </div>
-              <div>
-                <h1 className="text-xl font-bold text-slate-900">Gestão de Estoque</h1>
-                <p className="text-sm text-slate-500">Sistema Multilojas</p>
-              </div>
-            </div>
-            
-            <div className="flex gap-2 bg-slate-100 p-1 rounded-lg">
-                <button
-                    onClick={() => setViewMode('counting')}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all ${viewMode === 'counting' ? 'bg-white shadow-sm text-blue-700' : 'text-slate-500 hover:text-slate-700'}`}
-                >
-                    <ClipboardList size={16} />
-                    Ficha de Contagem
-                </button>
-                <button
-                    onClick={() => setViewMode('control')}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all ${viewMode === 'control' ? 'bg-white shadow-sm text-blue-700' : 'text-slate-500 hover:text-slate-700'}`}
-                >
-                    <AlertCircle size={16} />
-                    Controle & Divergências
-                </button>
-            </div>
-
-            <div className="flex items-center gap-3">
-              <button
-                onClick={handlePrint}
-                className="flex items-center gap-2 px-3 py-2 bg-gray-100 text-gray-700 rounded-lg font-medium hover:bg-gray-200 transition-colors shadow-sm"
-                title="Imprimir Relatório"
-              >
-                <Printer size={18} />
-              </button>
-
-              {user ? (
-                <div className="flex items-center gap-2">
-                  <button 
-                    onClick={handleLogout}
-                    className="flex items-center gap-2 px-3 py-2 text-gray-500 hover:bg-gray-100 rounded"
-                    title="Sair"
-                  >
-                    <LogOut size={18} />
-                  </button>
-                </div>
-              ) : (
-                <button 
-                  onClick={() => setIsLoginOpen(true)}
-                  className="flex items-center gap-2 px-4 py-2 text-blue-600 hover:bg-blue-50 rounded font-medium"
-                >
-                  <LogIn size={18} />
-                  Login
-                </button>
-              )}
-
-              <button
-                onClick={exportToExcel}
-                className="flex items-center gap-2 px-5 py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium transition-colors shadow-sm hover:shadow active:scale-95 text-sm whitespace-nowrap"
-              >
-                <Download size={18} />
-                Baixar {viewMode === 'control' ? 'Relatório' : 'Planilha'}
-              </button>
-            </div>
-          </div>
-        </div>
-      </header>
-
-      <main className="max-w-7xl mx-auto px-4 py-8 print:p-0 print:w-full">
-        {/* Info Bar */}
-        <div className="flex flex-col md:flex-row gap-6 mb-8 print:mb-4">
-          <div className="flex-1 bg-white border border-slate-200 rounded-xl p-5 shadow-sm print:border-none print:shadow-none print:p-0">
-            <div className="flex items-center justify-between mb-4 print:mb-2">
-              <div className="flex gap-2 p-1 bg-slate-50 rounded-xl print:hidden">
-                <LocationButton name="Matriz" />
-                <LocationButton name="Mucambo" />
-                <LocationButton name="Tianguá" />
-              </div>
-              <div className="flex gap-2 print:hidden">
-                <DateButton date="26/01" />
-                <DateButton date="02/02" />
-              </div>
-            </div>
-            
-            <div className="flex items-center gap-2 text-sm text-slate-500 bg-slate-50 p-3 rounded-lg border border-slate-100 print:bg-white print:border-none print:p-0 print:text-lg print:text-black">
-              <Calculator size={16} className="text-blue-500 print:hidden" />
-              <span>
-                <strong>{selectedLocation}</strong> - Relatório de <strong>{selectedDate}/2026</strong>. 
-                {currentData.responsavel !== '-' && ` Responsável: ${currentData.responsavel}.`}
-              </span>
-            </div>
-          </div>
-        </div>
-
-        {/* Content */}
-        {isLoading ? (
-           <div className="text-center py-20 bg-white rounded-xl border border-dashed border-slate-300 print:hidden">
-             <RefreshCw className="animate-spin mx-auto text-blue-500 mb-2" size={32}/>
-             <p className="text-slate-500">Carregando dados da nuvem...</p>
-           </div>
-        ) : !user ? (
-           <div className="text-center py-20 bg-white rounded-xl border border-dashed border-slate-300 print:hidden">
-             <LogIn className="mx-auto text-slate-300 mb-3" size={48}/>
-             <p className="text-slate-500 mb-4">Faça login para acessar os dados do estoque.</p>
-             <button 
-               onClick={() => setIsLoginOpen(true)}
-               className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium"
-             >
-               Entrar no Sistema
-             </button>
-           </div>
-        ) : (
-          <div className="space-y-2">
-            {viewMode === 'counting' ? (
-                <>
-                    <Section title="Águas" data={currentData.aguas} category="aguas" onUpdate={handleUpdate} />
-                    <Section title="Cervejas" data={currentData.cervejas} category="cervejas" onUpdate={handleUpdate} />
-                    <Section title="Cervejas Zero Álcool & Energéticos" data={currentData.zero_energeticos} category="zero_energeticos" onUpdate={handleUpdate} />
-                    <Section title="Refrigerantes" data={currentData.refrigerantes} category="refrigerantes" onUpdate={handleUpdate} />
-                    <Section title="Sucos Industrializados" data={currentData.sucos} category="sucos" onUpdate={handleUpdate} />
-                    
-                    <div className="grid md:grid-cols-2 gap-8 mt-12 print:block">
-                    <Section title="Sobremesas" data={currentData.sobremesas} category="sobremesas" onUpdate={handleUpdate} type="list" />
-                    <Section title="Destilados & Vinhos" data={currentData.destilados} category="destilados" onUpdate={handleUpdate} type="list" />
-                    <Section title="Picolés" data={currentData.picoles} category="picoles" onUpdate={handleUpdate} type="list" />
-                    <Section title="Jarras e Taças" data={currentData.jarras_tacas} category="jarras_tacas" onUpdate={handleUpdate} type="list" />
+            return (
+                <div className="mb-8 bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden break-inside-avoid">
+                    <div className="bg-gray-50 px-6 py-4 border-b border-gray-200">
+                        <h3 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
+                            {title}
+                            <span className="text-xs font-normal text-gray-500 bg-gray-200 px-2 py-1 rounded-full print:hidden">
+                                {data.length} itens
+                            </span>
+                        </h3>
                     </div>
-                </>
-            ) : (
-                <>
-                    {/* MODO CONTROLE & DIVERGÊNCIAS */}
-                    <div className="bg-blue-50 p-4 rounded-lg mb-6 border border-blue-100 print:hidden">
-                        <div className="flex justify-between items-start gap-3 mb-4">
-                            <div className="flex items-start gap-3">
-                                <AlertCircle className="text-blue-600 mt-1 shrink-0" size={20} />
-                                <div>
-                                    <h4 className="font-bold text-blue-800">Modo de Auditoria</h4>
-                                    <p className="text-sm text-blue-700">Preencha a Entrada (Estoque Inicial + Compras) e a Saída (Vendas). O sistema calculará o "Deveria Ter" usando o saldo da contagem anterior (se houver).</p>
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-sm text-left">
+                            <thead className="text-xs text-gray-700 uppercase bg-gray-50">
+                                {type === "grid" ? (
+                                    <tr>
+                                        <th className="px-6 py-3 w-1/3">Produto</th>
+                                        <th className="px-4 py-3 text-center bg-blue-50 print:bg-transparent">Local 1</th>
+                                        <th className="px-4 py-3 text-center bg-green-50 print:bg-transparent">Local 2</th>
+                                        <th className="px-4 py-3 text-center bg-yellow-50 print:bg-transparent">Local 3</th>
+                                        <th className="px-4 py-3 text-center bg-purple-50 print:bg-transparent">Local 4</th>
+                                        <th className="px-6 py-3 text-center font-bold bg-gray-100 print:bg-transparent">Total</th>
+                                    </tr>
+                                ) : (
+                                    <tr>
+                                        <th className="px-6 py-3 w-2/3">Produto</th>
+                                        <th className="px-6 py-3 text-center w-1/3 font-bold bg-gray-100 print:bg-transparent">Quantidade</th>
+                                    </tr>
+                                )}
+                            </thead>
+                            <tbody className="divide-y divide-gray-100">
+                                {data.map((item, index) => {
+                                    const total = type === "grid" 
+                                        ? (parseInt(item.l1 || 0) + parseInt(item.l2 || 0) + parseInt(item.l3 || 0) + parseInt(item.l4 || 0))
+                                        : item.qtd;
+                                    const isZero = total === 0;
+                                    return (
+                                        <tr key={index} className={`transition-colors ${isZero ? 'bg-white opacity-60 hover:opacity-100' : 'bg-white hover:bg-gray-50'}`}>
+                                            <td className="px-6 py-3 font-medium text-gray-900">{item.nome}</td>
+                                            {type === "grid" ? (
+                                                <>
+                                                    {['l1', 'l2', 'l3', 'l4'].map(local => (
+                                                        <td key={local} className="px-2 py-2 text-center">
+                                                            <input type="number" min="0" className={`w-16 text-center border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm bg-transparent hover:bg-white print:border-none print:w-auto ${item[local] > 0 ? 'font-bold text-gray-900' : 'text-gray-400'}`} value={item[local]} onChange={(e) => onUpdate(category, index, local, e.target.value)} />
+                                                        </td>
+                                                    ))}
+                                                    <td className={`px-6 py-3 text-center font-bold bg-gray-50 print:bg-transparent ${isZero ? 'text-gray-400' : 'text-blue-600'}`}>{total}</td>
+                                                </>
+                                            ) : (
+                                                <td className="px-6 py-3 text-center">
+                                                    <input type="number" min="0" className={`w-24 text-center border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm bg-gray-50 font-bold print:border-none print:w-auto ${item.qtd > 0 ? 'text-blue-600' : 'text-gray-400'}`} value={item.qtd} onChange={(e) => onUpdate(category, index, 'qtd', e.target.value)} />
+                                                </td>
+                                            )}
+                                        </tr>
+                                    );
+                                })}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            );
+        };
+
+        const ControlSection = ({ title, data, category, stockFlowData, previousStockData, onFlowUpdate, previousDateLabel, type = "grid" }) => {
+            if (!data || data.length === 0) return null;
+
+            return (
+                <div className="mb-8 bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden break-inside-avoid">
+                    <div className="bg-gray-50 px-6 py-4 border-b border-gray-200">
+                        <h3 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
+                            {title}
+                            <span className="text-xs font-normal text-gray-500 bg-gray-200 px-2 py-1 rounded-full print:hidden">Controle & Divergência</span>
+                        </h3>
+                    </div>
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-sm text-left">
+                            <thead className="text-xs text-gray-700 uppercase bg-gray-50">
+                                <tr>
+                                    <th className="px-6 py-3 w-1/4">Produto</th>
+                                    <th className="px-4 py-3 text-center w-1/12 bg-gray-100 font-semibold text-gray-700 print:bg-transparent">Anterior {previousDateLabel && <span className="block text-[10px] text-gray-500 font-normal">({previousDateLabel})</span>}</th>
+                                    <th className="px-4 py-3 text-center w-1/12 bg-blue-50 print:bg-transparent">Entrada (+)</th>
+                                    <th className="px-4 py-3 text-center w-1/12 bg-red-50 print:bg-transparent">Saída (-)</th>
+                                    <th className="px-4 py-3 text-center w-1/12 bg-gray-100 font-bold text-gray-600 print:bg-transparent">Teórico (=)</th>
+                                    <th className="px-4 py-3 text-center w-1/12 bg-gray-100 font-bold text-blue-600 print:bg-transparent">Contado</th>
+                                    <th className="px-4 py-3 text-center w-1/12 font-bold">Divergência</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-100">
+                                {data.map((item, index) => {
+                                    const countedTotal = type === "grid" ? (parseInt(item.l1 || 0) + parseInt(item.l2 || 0) + parseInt(item.l3 || 0) + parseInt(item.l4 || 0)) : item.qtd;
+                                    const flow = stockFlowData?.[item.nome] || { entry: 0, exit: 0 };
+                                    const prevStock = previousStockData?.[item.nome] || 0;
+                                    const expected = (prevStock + (flow.entry || 0)) - (flow.exit || 0);
+                                    const divergence = countedTotal - expected;
+                                    let divColor = "text-gray-400";
+                                    if (divergence < 0) divColor = "text-red-600 font-bold bg-red-50 print:bg-transparent";
+                                    if (divergence > 0) divColor = "text-blue-600 font-bold bg-blue-50 print:bg-transparent";
+
+                                    return (
+                                        <tr key={index} className="hover:bg-gray-50 transition-colors">
+                                            <td className="px-6 py-3 font-medium text-gray-900">{item.nome}</td>
+                                            <td className="px-4 py-3 text-center text-gray-600 bg-gray-50 border-r border-gray-100 print:bg-transparent">{prevStock}</td>
+                                            <td className="px-2 py-2 text-center bg-blue-50/30 print:bg-transparent"><input type="number" min="0" placeholder="0" className="w-20 text-center border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm bg-white print:border-none print:w-auto" value={flow.entry || ''} onChange={(e) => onFlowUpdate(category, item.nome, 'entry', e.target.value)} /></td>
+                                            <td className="px-2 py-2 text-center bg-red-50/30 print:bg-transparent"><input type="number" min="0" placeholder="0" className="w-20 text-center border-gray-300 rounded-md shadow-sm focus:ring-red-500 focus:border-red-500 sm:text-sm bg-white print:border-none print:w-auto" value={flow.exit || ''} onChange={(e) => onFlowUpdate(category, item.nome, 'exit', e.target.value)} /></td>
+                                            <td className="px-4 py-3 text-center font-bold text-gray-500 bg-gray-50 print:bg-transparent">{expected}</td>
+                                            <td className="px-4 py-3 text-center font-bold text-blue-600 bg-gray-100 border-l border-r border-gray-200 print:bg-transparent">{countedTotal}</td>
+                                            <td className={`px-4 py-3 text-center ${divColor}`}>{divergence > 0 ? `+${divergence}` : divergence}</td>
+                                        </tr>
+                                    );
+                                })}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            );
+        };
+
+        const LoginModal = ({ isOpen, onClose, onLogin }) => {
+            const [email, setEmail] = useState('');
+            const [password, setPassword] = useState('');
+            const [error, setError] = useState('');
+
+            if (!isOpen) return null;
+
+            const handleSubmit = async (e) => {
+                e.preventDefault();
+                setError('');
+                try {
+                    await onLogin(email, password);
+                    onClose();
+                } catch (err) {
+                    setError("Falha no login: Verifique suas credenciais.");
+                    console.error(err);
+                }
+            };
+
+            return (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+                    <div className="bg-white rounded-lg p-8 w-96 shadow-xl">
+                        <h2 className="text-2xl font-bold mb-6 text-gray-800 flex items-center gap-2"><LogIn size={24} className="text-blue-600"/> Acesso Restrito</h2>
+                        <form onSubmit={handleSubmit} className="space-y-4">
+                            <div><label className="block text-sm font-medium text-gray-700">Email</label><input type="email" required className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 p-2 border" value={email} onChange={(e) => setEmail(e.target.value)} /></div>
+                            <div><label className="block text-sm font-medium text-gray-700">Senha</label><input type="password" required className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 p-2 border" value={password} onChange={(e) => setPassword(e.target.value)} /></div>
+                            {error && <p className="text-red-500 text-sm">{error}</p>}
+                            <div className="flex justify-end gap-2 mt-6"><button type="button" onClick={onClose} className="px-4 py-2 text-gray-600 hover:text-gray-800">Cancelar</button><button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">Entrar</button></div>
+                        </form>
+                    </div>
+                </div>
+            );
+        };
+
+        const LocationButton = ({ name, onClick, isSelected }) => (
+            <button onClick={onClick} className={`flex items-center gap-2 px-4 py-3 rounded-lg font-medium transition-all print:hidden ${isSelected ? 'bg-blue-600 text-white shadow-md ring-2 ring-blue-600 ring-offset-2' : 'bg-white text-slate-600 hover:bg-slate-50 border border-slate-200'}`}>
+                <Building2 size={18} /> {name}
+            </button>
+        );
+
+        const DateButton = ({ date, onClick, isSelected, disabled }) => (
+            <button onClick={() => !disabled && onClick(date)} disabled={disabled} className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-all print:hidden ${isSelected ? 'bg-blue-100 text-blue-700 border border-blue-200' : disabled ? 'opacity-40 cursor-not-allowed text-slate-400' : 'text-slate-500 hover:bg-slate-100'}`}>
+                <Calendar size={14} /> {date}
+            </button>
+        );
+
+        // --- MAIN APP ---
+        const App = () => {
+            const fileInputRef = useRef(null);
+            
+            const [selectedLocation, setSelectedLocation] = useState('Tianguá');
+            const [selectedDate, setSelectedDate] = useState('02/02');
+            const [viewMode, setViewMode] = useState('counting'); 
+            
+            const [user, setUser] = useState(null);
+            const [isLoginOpen, setIsLoginOpen] = useState(false);
+            const [isLoading, setIsLoading] = useState(false);
+            
+            const [stockFlow, setStockFlow] = useState({});
+            const [dataSets, setDataSets] = useState({}); 
+
+            useEffect(() => {
+                const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+                    setUser(currentUser);
+                    if (currentUser) handleLoadFromCloud();
+                });
+                return () => unsubscribe();
+            }, []);
+
+            const handleLogin = async (email, password) => { await signInWithEmailAndPassword(auth, email, password); };
+            const handleLogout = async () => { await signOut(auth); setDataSets({}); setStockFlow({}); alert("Desconectado com sucesso."); };
+
+            const handleLoadFromCloud = async () => {
+                setIsLoading(true);
+                try {
+                    const docRef = doc(db, "estoque", "geral");
+                    const docSnap = await getDoc(docRef);
+                    if (docSnap.exists()) {
+                        const data = docSnap.data();
+                        if (data.dataSets) setDataSets(data.dataSets);
+                        if (data.stockFlow) setStockFlow(data.stockFlow);
+                        console.log("Dados carregados da nuvem.");
+                    } else {
+                        await setDoc(docRef, { dataSets: {}, stockFlow: {} });
+                        console.log("Nenhum dado encontrado na nuvem. Criado documento inicial.");
+                    }
+                } catch (error) { console.error("Error getting document: ", error); } finally { setIsLoading(false); }
+            };
+
+            const getDatasetKey = (loc, date) => {
+                const locMap = { 'Matriz': 'matriz', 'Mucambo': 'mucambo', 'Tianguá': 'tiangua' };
+                const dateMap = { '26/01': '26_01', '02/02': '02_02' };
+                return `${locMap[loc]}_${dateMap[date]}`;
+            };
+
+            const getPreviousStockValues = (location, currentDate, allDataSets) => {
+                const currentIndex = DATES_ORDER.indexOf(currentDate);
+                if (currentIndex <= 0) return {}; 
+                const prevDate = DATES_ORDER[currentIndex - 1];
+                const prevKey = getDatasetKey(location, prevDate);
+                const prevData = allDataSets[prevKey];
+                if (!prevData) return {}; 
+                const stockMap = {};
+                const categories = ['aguas', 'cervejas', 'zero_energeticos', 'refrigerantes', 'sucos', 'sobremesas', 'destilados', 'picoles', 'jarras_tacas'];
+                categories.forEach(cat => {
+                    if (prevData[cat]) {
+                        prevData[cat].forEach(item => {
+                            const total = (item.l1 || 0) + (item.l2 || 0) + (item.l3 || 0) + (item.l4 || 0) + (item.qtd || 0);
+                            stockMap[item.nome] = total;
+                        });
+                    }
+                });
+                return stockMap;
+            };
+
+            const getPreviousDateLabel = (current) => {
+                const idx = DATES_ORDER.indexOf(current);
+                if (idx > 0) return DATES_ORDER[idx - 1];
+                return null;
+            };
+
+            const currentKey = getDatasetKey(selectedLocation, selectedDate);
+            const currentData = dataSets[currentKey] || generateCompleteDataSet(MASTER_LIST, {}, "-", selectedLocation);
+            const currentFlowData = stockFlow[currentKey] || {};
+            const previousStockData = getPreviousStockValues(selectedLocation, selectedDate, dataSets);
+            const previousDateLabel = getPreviousDateLabel(selectedDate);
+
+            const handleUpdate = (category, index, field, value) => {
+                const val = value === '' ? 0 : parseInt(value);
+                const baseData = dataSets[currentKey] || generateCompleteDataSet(MASTER_LIST, {}, "-", selectedLocation);
+                const updatedCategory = baseData[category].map((item, i) => i === index ? { ...item, [field]: val } : item);
+                const newDataSets = { ...dataSets, [currentKey]: { ...baseData, [category]: updatedCategory } };
+                setDataSets(newDataSets);
+                if (user) {
+                    const updatePayload = {};
+                    updatePayload[`dataSets.${currentKey}`] = newDataSets[currentKey];
+                    updatePayload['lastUpdated'] = new Date().toISOString();
+                    updatePayload['updatedBy'] = user.email;
+                    updateDoc(doc(db, "estoque", "geral"), updatePayload).catch(e => console.error("Falha ao salvar contagem", e));
+                }
+            };
+
+            const handleFlowUpdate = (category, productName, type, value) => {
+                const val = value === '' ? 0 : parseInt(value);
+                const newStockFlow = { ...stockFlow, [currentKey]: { ...stockFlow[currentKey], [category]: { ...stockFlow[currentKey]?.[category], [productName]: { ...stockFlow[currentKey]?.[category]?.[productName], [type]: val } } } };
+                setStockFlow(newStockFlow);
+                if (user) {
+                    const updatePayload = {};
+                    updatePayload[`stockFlow.${currentKey}`] = newStockFlow[currentKey];
+                    updatePayload['lastUpdated'] = new Date().toISOString();
+                    updateDoc(doc(db, "estoque", "geral"), updatePayload).catch(e => console.error("Falha ao salvar fluxo", e));
+                }
+            };
+
+            const handleDownloadTemplate = () => {
+                if (!window.XLSX) { alert("Biblioteca XLSX não carregada."); return; }
+                const rows = [["CATEGORIA", "PRODUTO", "ENTRADA", "SAIDA"]];
+                const categories = [
+                    { key: 'aguas', label: 'ÁGUAS' }, { key: 'cervejas', label: 'CERVEJAS' }, { key: 'zero_energeticos', label: 'ZERO & ENERGÉTICOS' },
+                    { key: 'refrigerantes', label: 'REFRIGERANTES' }, { key: 'sucos', label: 'SUCOS' }, { key: 'sobremesas', label: 'SOBREMESAS' },
+                    { key: 'destilados', label: 'DESTILADOS' }, { key: 'picoles', label: 'PICOLÉS' }, { key: 'jarras_tacas', label: 'JARRAS E TAÇAS' }
+                ];
+                categories.forEach(cat => { if(MASTER_LIST[cat.key]) { MASTER_LIST[cat.key].forEach(product => { rows.push([cat.label, product, "", ""]); }); } });
+                const wb = window.XLSX.utils.book_new();
+                const ws = window.XLSX.utils.aoa_to_sheet(rows);
+                ws['!cols'] = [{ wch: 20 }, { wch: 40 }, { wch: 10 }, { wch: 10 }];
+                window.XLSX.utils.book_append_sheet(wb, ws, "Modelo Entrada e Saída");
+                window.XLSX.writeFile(wb, "Modelo_Movimentacao_Estoque.xlsx");
+            };
+
+            const handleFileUpload = (e) => {
+                if (!window.XLSX) return;
+                const file = e.target.files[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = (evt) => {
+                    const bstr = evt.target.result;
+                    const wb = window.XLSX.read(bstr, { type: 'binary' });
+                    const wsname = wb.SheetNames[0];
+                    const ws = wb.Sheets[wsname];
+                    const data = window.XLSX.utils.sheet_to_json(ws);
+                    const newFlowData = { ...stockFlow[currentKey] };
+                    data.forEach(row => {
+                        const produto = row["PRODUTO"];
+                        const entrada = row["ENTRADA"] ? parseInt(row["ENTRADA"]) : 0;
+                        const saida = row["SAIDA"] ? parseInt(row["SAIDA"]) : 0;
+                        if (produto) {
+                            let categoryKey = null;
+                            for (const [key, list] of Object.entries(MASTER_LIST)) {
+                                if (list.includes(produto)) { categoryKey = key; break; }
+                            }
+                            if (categoryKey) {
+                                if (!newFlowData[categoryKey]) newFlowData[categoryKey] = {};
+                                if (!newFlowData[categoryKey][produto]) newFlowData[categoryKey][produto] = {};
+                                newFlowData[categoryKey][produto].entry = entrada;
+                                newFlowData[categoryKey][produto].exit = saida;
+                            }
+                        }
+                    });
+                    const updatedStockFlow = { ...stockFlow, [currentKey]: newFlowData };
+                    setStockFlow(updatedStockFlow);
+                    if (user) {
+                        const updatePayload = {};
+                        updatePayload[`stockFlow.${currentKey}`] = newFlowData;
+                        updateDoc(doc(db, "estoque", "geral"), updatePayload)
+                            .then(() => alert("Importação realizada e salva na nuvem com sucesso!"))
+                            .catch(e => { console.error("Erro ao salvar upload", e); alert("Erro ao salvar na nuvem."); });
+                    } else { alert("Importado apenas localmente. Faça login para salvar."); }
+                    if(fileInputRef.current) fileInputRef.current.value = "";
+                };
+                reader.readAsBinaryString(file);
+            };
+
+            const exportToExcel = () => {
+                if (!window.XLSX) { alert("Biblioteca XLSX não carregada."); return; }
+                const wb = window.XLSX.utils.book_new();
+                const mainRows = [];
+                mainRows.push([`RELATÓRIO DE ESTOQUE - ${selectedLocation.toUpperCase()}`, "", "", "", "", "", "", ""]);
+                mainRows.push([`Data: ${selectedDate}/26`, "", `Responsável: ${currentData.responsavel || '-'}`, "", "", "", "", ""]);
+                mainRows.push([""]);
+                if (viewMode === 'control') mainRows.push(["CATEGORIA", "PRODUTO", "ANTERIOR", "ENTRADA", "SAÍDA", "TEÓRICO", "CONTADO", "DIVERGÊNCIA"]);
+                else mainRows.push(["CATEGORIA", "PRODUTO", "LOCAL 1", "LOCAL 2", "LOCAL 3", "LOCAL 4", "TOTAL"]);
+                const allCategories = [
+                    { key: 'aguas', label: 'ÁGUAS' }, { key: 'cervejas', label: 'CERVEJAS' }, { key: 'zero_energeticos', label: 'ZERO & ENERGÉTICOS' },
+                    { key: 'refrigerantes', label: 'REFRIGERANTES' }, { key: 'sucos', label: 'SUCOS' }, { key: 'sobremesas', label: 'SOBREMESAS' },
+                    { key: 'destilados', label: 'DESTILADOS' }, { key: 'picoles', label: 'PICOLÉS' }, { key: 'jarras_tacas', label: 'JARRAS E TAÇAS' }
+                ];
+                allCategories.forEach(cat => {
+                    const itemList = currentData[cat.key] && currentData[cat.key].length > 0 ? currentData[cat.key] : MASTER_LIST[cat.key].map(name => ({ nome: name, l1:0, l2:0, l3:0, l4:0, qtd:0 }));
+                    if (!itemList) return;
+                    itemList.forEach(item => {
+                        const isGrid = ['aguas', 'cervejas', 'zero_energeticos', 'refrigerantes', 'sucos'].includes(cat.key);
+                        const countedTotal = isGrid ? (parseInt(item.l1 || 0) + parseInt(item.l2 || 0) + parseInt(item.l3 || 0) + parseInt(item.l4 || 0)) : parseInt(item.qtd || 0);
+                        if (viewMode === 'control') {
+                            const flow = currentFlowData?.[cat.key]?.[item.nome] || { entry: 0, exit: 0 };
+                            const prevStock = previousStockData?.[item.nome] || 0;
+                            const expected = (prevStock + parseInt(flow.entry || 0)) - parseInt(flow.exit || 0);
+                            const divergence = countedTotal - expected;
+                            mainRows.push([cat.label, item.nome, prevStock, flow.entry || 0, flow.exit || 0, expected, countedTotal, divergence]);
+                        } else {
+                            if (isGrid) mainRows.push([cat.label, item.nome, item.l1 || 0, item.l2 || 0, item.l3 || 0, item.l4 || 0, countedTotal]);
+                            else mainRows.push([cat.label, item.nome, "-", "-", "-", "-", countedTotal]);
+                        }
+                    });
+                });
+                const wsMain = window.XLSX.utils.aoa_to_sheet(mainRows);
+                wsMain['!cols'] = [{ wch: 20 }, { wch: 40 }, { wch: 10 }, { wch: 10 }, { wch: 10 }, { wch: 10 }, { wch: 10 }, { wch: 10 }];
+                window.XLSX.utils.book_append_sheet(wb, wsMain, "Relatório Geral");
+                window.XLSX.writeFile(wb, `Estoque_${viewMode}_${selectedLocation}_${selectedDate.replace(/\//g, '-')}.xlsx`);
+            };
+
+            const handlePrint = () => { window.print(); };
+
+            return (
+                <div className="min-h-screen bg-slate-50 font-sans text-slate-800 print:bg-white">
+                    <LoginModal isOpen={isLoginOpen} onClose={() => setIsLoginOpen(false)} onLogin={handleLogin} />
+                    
+                    <header className="bg-white border-b border-slate-200 sticky top-0 z-10 shadow-sm print:hidden">
+                        <div className="max-w-7xl mx-auto px-4 py-4">
+                            <div className="flex flex-col xl:flex-row justify-between items-center gap-6">
+                                <div className="flex items-center gap-3">
+                                    <div className="p-2 bg-blue-100 rounded-lg text-blue-600"><FileSpreadsheet size={24} /></div>
+                                    <div><h1 className="text-xl font-bold text-slate-900">Gestão de Estoque</h1><p className="text-sm text-slate-500">Sistema Multilojas</p></div>
+                                </div>
+                                <div className="flex gap-2 bg-slate-100 p-1 rounded-lg">
+                                    <button onClick={() => setViewMode('counting')} className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all ${viewMode === 'counting' ? 'bg-white shadow-sm text-blue-700' : 'text-slate-500 hover:text-slate-700'}`}><ClipboardList size={16} /> Ficha de Contagem</button>
+                                    <button onClick={() => setViewMode('control')} className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all ${viewMode === 'control' ? 'bg-white shadow-sm text-blue-700' : 'text-slate-500 hover:text-slate-700'}`}><AlertCircle size={16} /> Controle & Divergências</button>
+                                </div>
+                                <div className="flex items-center gap-3">
+                                    <button onClick={handlePrint} className="flex items-center gap-2 px-3 py-2 bg-gray-100 text-gray-700 rounded-lg font-medium hover:bg-gray-200 transition-colors shadow-sm" title="Imprimir Relatório"><Printer size={18} /></button>
+                                    {user ? (
+                                        <div className="flex items-center gap-2">
+                                            <button onClick={handleLogout} className="flex items-center gap-2 px-3 py-2 text-gray-500 hover:bg-gray-100 rounded" title="Sair"><LogOut size={18} /></button>
+                                        </div>
+                                    ) : (
+                                        <button onClick={() => setIsLoginOpen(true)} className="flex items-center gap-2 px-4 py-2 text-blue-600 hover:bg-blue-50 rounded font-medium"><LogIn size={18} /> Login</button>
+                                    )}
+                                    <button onClick={exportToExcel} className="flex items-center gap-2 px-5 py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium transition-colors shadow-sm hover:shadow active:scale-95 text-sm whitespace-nowrap"><Download size={18} /> Baixar {viewMode === 'control' ? 'Relatório' : 'Planilha'}</button>
                                 </div>
                             </div>
-                            <div className="flex gap-2">
-                                <button
-                                    onClick={handleDownloadTemplate}
-                                    className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-blue-200 text-blue-700 rounded-lg text-sm font-medium hover:bg-blue-50 transition-colors"
-                                >
-                                    <FileDown size={16} />
-                                    Baixar Modelo
-                                </button>
-                                <label className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors cursor-pointer shadow-sm">
-                                    <Upload size={16} />
-                                    Importar Movimentação
-                                    <input 
-                                        type="file" 
-                                        ref={fileInputRef}
-                                        onChange={handleFileUpload} 
-                                        accept=".xlsx" 
-                                        className="hidden" 
-                                    />
-                                </label>
+                        </div>
+                    </header>
+
+                    <main className="max-w-7xl mx-auto px-4 py-8 print:p-0 print:w-full">
+                        <div className="flex flex-col md:flex-row gap-6 mb-8 print:mb-4">
+                            <div className="flex-1 bg-white border border-slate-200 rounded-xl p-5 shadow-sm print:border-none print:shadow-none print:p-0">
+                                <div className="flex items-center justify-between mb-4 print:mb-2">
+                                    <div className="flex gap-2 p-1 bg-slate-50 rounded-xl print:hidden">
+                                        <LocationButton name="Matriz" onClick={() => { setSelectedLocation('Matriz'); setSelectedDate('02/02'); }} isSelected={selectedLocation === 'Matriz'} />
+                                        <LocationButton name="Mucambo" onClick={() => { setSelectedLocation('Mucambo'); setSelectedDate('02/02'); }} isSelected={selectedLocation === 'Mucambo'} />
+                                        <LocationButton name="Tianguá" onClick={() => { setSelectedLocation('Tianguá'); setSelectedDate('02/02'); }} isSelected={selectedLocation === 'Tianguá'} />
+                                    </div>
+                                    <div className="flex gap-2 print:hidden">
+                                        <DateButton date="26/01" onClick={setSelectedDate} isSelected={selectedDate === '26/01'} />
+                                        <DateButton date="02/02" onClick={setSelectedDate} isSelected={selectedDate === '02/02'} />
+                                    </div>
+                                </div>
+                                <div className="flex items-center gap-2 text-sm text-slate-500 bg-slate-50 p-3 rounded-lg border border-slate-100 print:bg-white print:border-none print:p-0 print:text-lg print:text-black">
+                                    <Calculator size={16} className="text-blue-500 print:hidden" />
+                                    <span><strong>{selectedLocation}</strong> - Relatório de <strong>{selectedDate}/2026</strong>. {currentData.responsavel !== '-' && ` Responsável: ${currentData.responsavel}.`}</span>
+                                </div>
                             </div>
                         </div>
-                    </div>
 
-                    <ControlSection title="Águas" data={currentData.aguas} category="aguas" stockFlowData={currentFlowData.aguas} previousStockData={previousStockData} onFlowUpdate={handleFlowUpdate} previousDateLabel={previousDateLabel} />
-                    <ControlSection title="Cervejas" data={currentData.cervejas} category="cervejas" stockFlowData={currentFlowData.cervejas} previousStockData={previousStockData} onFlowUpdate={handleFlowUpdate} previousDateLabel={previousDateLabel} />
-                    <ControlSection title="Zero & Energéticos" data={currentData.zero_energeticos} category="zero_energeticos" stockFlowData={currentFlowData.zero_energeticos} previousStockData={previousStockData} onFlowUpdate={handleFlowUpdate} previousDateLabel={previousDateLabel} />
-                    <ControlSection title="Refrigerantes" data={currentData.refrigerantes} category="refrigerantes" stockFlowData={currentFlowData.refrigerantes} previousStockData={previousStockData} onFlowUpdate={handleFlowUpdate} previousDateLabel={previousDateLabel} />
-                    <ControlSection title="Sucos" data={currentData.sucos} category="sucos" stockFlowData={currentFlowData.sucos} previousStockData={previousStockData} onFlowUpdate={handleFlowUpdate} previousDateLabel={previousDateLabel} />
-                    
-                    <ControlSection title="Sobremesas" data={currentData.sobremesas} category="sobremesas" stockFlowData={currentFlowData.sobremesas} previousStockData={previousStockData} onFlowUpdate={handleFlowUpdate} previousDateLabel={previousDateLabel} type="list" />
-                    <ControlSection title="Destilados" data={currentData.destilados} category="destilados" stockFlowData={currentFlowData.destilados} previousStockData={previousStockData} onFlowUpdate={handleFlowUpdate} previousDateLabel={previousDateLabel} type="list" />
-                    <ControlSection title="Picolés" data={currentData.picoles} category="picoles" stockFlowData={currentFlowData.picoles} previousStockData={previousStockData} onFlowUpdate={handleFlowUpdate} previousDateLabel={previousDateLabel} type="list" />
-                    <ControlSection title="Jarras e Taças" data={currentData.jarras_tacas} category="jarras_tacas" stockFlowData={currentFlowData.jarras_tacas} previousStockData={previousStockData} onFlowUpdate={handleFlowUpdate} previousDateLabel={previousDateLabel} type="list" />
-                </>
-            )}
-          </div>
-        )}
-      </main>
+                        {isLoading ? (
+                            <div className="text-center py-20 bg-white rounded-xl border border-dashed border-slate-300 print:hidden">
+                                <RefreshCw className="animate-spin mx-auto text-blue-500 mb-2" size={32}/>
+                                <p className="text-slate-500">Carregando dados da nuvem...</p>
+                            </div>
+                        ) : !user ? (
+                            <div className="text-center py-20 bg-white rounded-xl border border-dashed border-slate-300 print:hidden">
+                                <LogIn className="mx-auto text-slate-300 mb-3" size={48}/>
+                                <p className="text-slate-500 mb-4">Faça login para acessar os dados do estoque.</p>
+                                <button onClick={() => setIsLoginOpen(true)} className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium">Entrar no Sistema</button>
+                            </div>
+                        ) : (
+                            <div className="space-y-2">
+                                {viewMode === 'counting' ? (
+                                    <>
+                                        <Section title="Águas" data={currentData.aguas} category="aguas" onUpdate={handleUpdate} />
+                                        <Section title="Cervejas" data={currentData.cervejas} category="cervejas" onUpdate={handleUpdate} />
+                                        <Section title="Cervejas Zero Álcool & Energéticos" data={currentData.zero_energeticos} category="zero_energeticos" onUpdate={handleUpdate} />
+                                        <Section title="Refrigerantes" data={currentData.refrigerantes} category="refrigerantes" onUpdate={handleUpdate} />
+                                        <Section title="Sucos Industrializados" data={currentData.sucos} category="sucos" onUpdate={handleUpdate} />
+                                        <div className="grid md:grid-cols-2 gap-8 mt-12 print:block">
+                                            <Section title="Sobremesas" data={currentData.sobremesas} category="sobremesas" onUpdate={handleUpdate} type="list" />
+                                            <Section title="Destilados & Vinhos" data={currentData.destilados} category="destilados" onUpdate={handleUpdate} type="list" />
+                                            <Section title="Picolés" data={currentData.picoles} category="picoles" onUpdate={handleUpdate} type="list" />
+                                            <Section title="Jarras e Taças" data={currentData.jarras_tacas} category="jarras_tacas" onUpdate={handleUpdate} type="list" />
+                                        </div>
+                                    </>
+                                ) : (
+                                    <>
+                                        <div className="bg-blue-50 p-4 rounded-lg mb-6 border border-blue-100 print:hidden">
+                                            <div className="flex justify-between items-start gap-3 mb-4">
+                                                <div className="flex items-start gap-3"><AlertCircle className="text-blue-600 mt-1 shrink-0" size={20} /><div><h4 className="font-bold text-blue-800">Modo de Auditoria</h4><p className="text-sm text-blue-700">Preencha a Entrada e Saída. O sistema calculará o "Teórico" usando o saldo anterior.</p></div></div>
+                                                <div className="flex gap-2">
+                                                    <button onClick={handleDownloadTemplate} className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-blue-200 text-blue-700 rounded-lg text-sm font-medium hover:bg-blue-50 transition-colors"><FileDown size={16} /> Baixar Modelo</button>
+                                                    <label className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors cursor-pointer shadow-sm"><Upload size={16} /> Importar Movimentação <input type="file" ref={fileInputRef} onChange={handleFileUpload} accept=".xlsx" className="hidden" /></label>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <ControlSection title="Águas" data={currentData.aguas} category="aguas" stockFlowData={currentFlowData.aguas} previousStockData={previousStockData} onFlowUpdate={handleFlowUpdate} previousDateLabel={previousDateLabel} />
+                                        <ControlSection title="Cervejas" data={currentData.cervejas} category="cervejas" stockFlowData={currentFlowData.cervejas} previousStockData={previousStockData} onFlowUpdate={handleFlowUpdate} previousDateLabel={previousDateLabel} />
+                                        <ControlSection title="Zero & Energéticos" data={currentData.zero_energeticos} category="zero_energeticos" stockFlowData={currentFlowData.zero_energeticos} previousStockData={previousStockData} onFlowUpdate={handleFlowUpdate} previousDateLabel={previousDateLabel} />
+                                        <ControlSection title="Refrigerantes" data={currentData.refrigerantes} category="refrigerantes" stockFlowData={currentFlowData.refrigerantes} previousStockData={previousStockData} onFlowUpdate={handleFlowUpdate} previousDateLabel={previousDateLabel} />
+                                        <ControlSection title="Sucos" data={currentData.sucos} category="sucos" stockFlowData={currentFlowData.sucos} previousStockData={previousStockData} onFlowUpdate={handleFlowUpdate} previousDateLabel={previousDateLabel} />
+                                        <ControlSection title="Sobremesas" data={currentData.sobremesas} category="sobremesas" stockFlowData={currentFlowData.sobremesas} previousStockData={previousStockData} onFlowUpdate={handleFlowUpdate} previousDateLabel={previousDateLabel} type="list" />
+                                        <ControlSection title="Destilados" data={currentData.destilados} category="destilados" stockFlowData={currentFlowData.destilados} previousStockData={previousStockData} onFlowUpdate={handleFlowUpdate} previousDateLabel={previousDateLabel} type="list" />
+                                        <ControlSection title="Picolés" data={currentData.picoles} category="picoles" stockFlowData={currentFlowData.picoles} previousStockData={previousStockData} onFlowUpdate={handleFlowUpdate} previousDateLabel={previousDateLabel} type="list" />
+                                        <ControlSection title="Jarras e Taças" data={currentData.jarras_tacas} category="jarras_tacas" stockFlowData={currentFlowData.jarras_tacas} previousStockData={previousStockData} onFlowUpdate={handleFlowUpdate} previousDateLabel={previousDateLabel} type="list" />
+                                    </>
+                                )}
+                            </div>
+                        )}
+                    </main>
+                    <footer className="bg-white border-t border-slate-200 py-8 mt-12 print:hidden"><div className="max-w-7xl mx-auto px-4 text-center text-slate-400 text-sm"><p>Sistema de Controle de Estoque • v3.3</p></div></footer>
+                </div>
+            );
+        };
 
-      <footer className="bg-white border-t border-slate-200 py-8 mt-12 print:hidden">
-        <div className="max-w-7xl mx-auto px-4 text-center text-slate-400 text-sm">
-          <p>Sistema de Controle de Estoque • v3.3 (Cálculo de Estoque Anterior)</p>
-        </div>
-      </footer>
-    </div>
-  );
-}
+        const root = createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
