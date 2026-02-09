@@ -20,8 +20,28 @@
 
     <style>
         @media print {
-            @page { margin: 0.5cm; }
-            body { -webkit-print-color-adjust: exact; }
+            @page { 
+                margin: 5mm; 
+                size: auto; /* Deixa o navegador decidir, mas com margens pequenas */
+            }
+            body { 
+                -webkit-print-color-adjust: exact; 
+                print-color-adjust: exact;
+                zoom: 0.70; /* Reduz a escala para 70% para caber na folha A4 */
+            }
+            /* Garante que cores de fundo (azul/verde/vermelho) apareçam na impressão */
+            * {
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+            }
+            /* Remove sombras e bordas extras na impressão */
+            .shadow-sm, .shadow-md, .shadow-xl {
+                box-shadow: none !important;
+            }
+            /* Evita quebra de tabela no meio da linha */
+            tr {
+                break-inside: avoid;
+            }
         }
     </style>
 </head>
@@ -164,9 +184,9 @@
             if (!data || data.length === 0) return null;
 
             return (
-                <div className="mb-8 bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden break-inside-avoid">
-                    <div className="bg-gray-50 px-6 py-4 border-b border-gray-200">
-                        <h3 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
+                <div className="mb-8 bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden break-inside-avoid print:mb-2 print:border-gray-300">
+                    <div className="bg-gray-50 px-6 py-4 border-b border-gray-200 print:py-2 print:px-4">
+                        <h3 className="text-lg font-semibold text-gray-800 flex items-center gap-2 print:text-sm">
                             {title}
                             <span className="text-xs font-normal text-gray-500 bg-gray-200 px-2 py-1 rounded-full print:hidden">
                                 {data.length} itens
@@ -178,41 +198,41 @@
                             <thead className="text-xs text-gray-700 uppercase bg-gray-50">
                                 {type === "grid" ? (
                                     <tr>
-                                        <th className="px-6 py-3 w-1/3">Produto</th>
-                                        <th className="px-4 py-3 text-center bg-blue-50 print:bg-transparent">Local 1</th>
-                                        <th className="px-4 py-3 text-center bg-green-50 print:bg-transparent">Local 2</th>
-                                        <th className="px-4 py-3 text-center bg-yellow-50 print:bg-transparent">Local 3</th>
-                                        <th className="px-4 py-3 text-center bg-purple-50 print:bg-transparent">Local 4</th>
-                                        <th className="px-6 py-3 text-center font-bold bg-gray-100 print:bg-transparent">Total</th>
+                                        <th className="px-6 py-3 w-1/3 print:px-2 print:py-1">Produto</th>
+                                        <th className="px-4 py-3 text-center bg-blue-50 print:bg-transparent print:px-1 print:py-1">Local 1</th>
+                                        <th className="px-4 py-3 text-center bg-green-50 print:bg-transparent print:px-1 print:py-1">Local 2</th>
+                                        <th className="px-4 py-3 text-center bg-yellow-50 print:bg-transparent print:px-1 print:py-1">Local 3</th>
+                                        <th className="px-4 py-3 text-center bg-purple-50 print:bg-transparent print:px-1 print:py-1">Local 4</th>
+                                        <th className="px-6 py-3 text-center font-bold bg-gray-100 print:bg-transparent print:px-2 print:py-1">Total</th>
                                     </tr>
                                 ) : (
                                     <tr>
-                                        <th className="px-6 py-3 w-2/3">Produto</th>
-                                        <th className="px-6 py-3 text-center w-1/3 font-bold bg-gray-100 print:bg-transparent">Quantidade</th>
+                                        <th className="px-6 py-3 w-2/3 print:px-2 print:py-1">Produto</th>
+                                        <th className="px-6 py-3 text-center w-1/3 font-bold bg-gray-100 print:bg-transparent print:px-2 print:py-1">Quantidade</th>
                                     </tr>
                                 )}
                             </thead>
-                            <tbody className="divide-y divide-gray-100">
+                            <tbody className="divide-y divide-gray-100 print:text-xs">
                                 {data.map((item, index) => {
                                     const total = type === "grid" 
                                         ? (parseInt(item.l1 || 0) + parseInt(item.l2 || 0) + parseInt(item.l3 || 0) + parseInt(item.l4 || 0))
                                         : item.qtd;
                                     const isZero = total === 0;
                                     return (
-                                        <tr key={index} className={`transition-colors ${isZero ? 'bg-white opacity-60 hover:opacity-100' : 'bg-white hover:bg-gray-50'}`}>
-                                            <td className="px-6 py-3 font-medium text-gray-900">{item.nome}</td>
+                                        <tr key={index} className={`transition-colors ${isZero ? 'bg-white opacity-60 hover:opacity-100 print:opacity-50' : 'bg-white hover:bg-gray-50'}`}>
+                                            <td className="px-6 py-3 font-medium text-gray-900 print:px-2 print:py-1">{item.nome}</td>
                                             {type === "grid" ? (
                                                 <>
                                                     {['l1', 'l2', 'l3', 'l4'].map(local => (
-                                                        <td key={local} className="px-2 py-2 text-center">
-                                                            <input type="number" min="0" className={`w-16 text-center border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm bg-transparent hover:bg-white print:border-none print:w-auto ${item[local] > 0 ? 'font-bold text-gray-900' : 'text-gray-400'}`} value={item[local]} onChange={(e) => onUpdate(category, index, local, e.target.value)} />
+                                                        <td key={local} className="px-2 py-2 text-center print:p-0">
+                                                            <input type="number" min="0" className={`w-16 text-center border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm bg-transparent hover:bg-white print:border-none print:w-full print:h-full print:text-xs ${item[local] > 0 ? 'font-bold text-gray-900' : 'text-gray-400'}`} value={item[local]} onChange={(e) => onUpdate(category, index, local, e.target.value)} />
                                                         </td>
                                                     ))}
-                                                    <td className={`px-6 py-3 text-center font-bold bg-gray-50 print:bg-transparent ${isZero ? 'text-gray-400' : 'text-blue-600'}`}>{total}</td>
+                                                    <td className={`px-6 py-3 text-center font-bold bg-gray-50 print:bg-transparent print:px-2 print:py-1 ${isZero ? 'text-gray-400' : 'text-blue-600'}`}>{total}</td>
                                                 </>
                                             ) : (
-                                                <td className="px-6 py-3 text-center">
-                                                    <input type="number" min="0" className={`w-24 text-center border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm bg-gray-50 font-bold print:border-none print:w-auto ${item.qtd > 0 ? 'text-blue-600' : 'text-gray-400'}`} value={item.qtd} onChange={(e) => onUpdate(category, index, 'qtd', e.target.value)} />
+                                                <td className="px-6 py-3 text-center print:px-2 print:py-1">
+                                                    <input type="number" min="0" className={`w-24 text-center border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm bg-gray-50 font-bold print:border-none print:w-auto print:text-xs ${item.qtd > 0 ? 'text-blue-600' : 'text-gray-400'}`} value={item.qtd} onChange={(e) => onUpdate(category, index, 'qtd', e.target.value)} />
                                                 </td>
                                             )}
                                         </tr>
@@ -229,9 +249,9 @@
             if (!data || data.length === 0) return null;
 
             return (
-                <div className="mb-8 bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden break-inside-avoid">
-                    <div className="bg-gray-50 px-6 py-4 border-b border-gray-200">
-                        <h3 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
+                <div className="mb-8 bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden break-inside-avoid print:mb-2 print:border-gray-300">
+                    <div className="bg-gray-50 px-6 py-4 border-b border-gray-200 print:py-2 print:px-4">
+                        <h3 className="text-lg font-semibold text-gray-800 flex items-center gap-2 print:text-sm">
                             {title}
                             <span className="text-xs font-normal text-gray-500 bg-gray-200 px-2 py-1 rounded-full print:hidden">Controle & Divergência</span>
                         </h3>
@@ -240,16 +260,16 @@
                         <table className="w-full text-sm text-left">
                             <thead className="text-xs text-gray-700 uppercase bg-gray-50">
                                 <tr>
-                                    <th className="px-6 py-3 w-1/4">Produto</th>
-                                    <th className="px-4 py-3 text-center w-1/12 bg-gray-100 font-semibold text-gray-700 print:bg-transparent">Anterior {previousDateLabel && <span className="block text-[10px] text-gray-500 font-normal">({previousDateLabel})</span>}</th>
-                                    <th className="px-4 py-3 text-center w-1/12 bg-blue-50 print:bg-transparent">Entrada (+)</th>
-                                    <th className="px-4 py-3 text-center w-1/12 bg-red-50 print:bg-transparent">Saída (-)</th>
-                                    <th className="px-4 py-3 text-center w-1/12 bg-gray-100 font-bold text-gray-600 print:bg-transparent">Teórico (=)</th>
-                                    <th className="px-4 py-3 text-center w-1/12 bg-gray-100 font-bold text-blue-600 print:bg-transparent">Contado</th>
-                                    <th className="px-4 py-3 text-center w-1/12 font-bold">Divergência</th>
+                                    <th className="px-6 py-3 w-1/4 print:px-2 print:py-1">Produto</th>
+                                    <th className="px-4 py-3 text-center w-1/12 bg-gray-100 font-semibold text-gray-700 print:bg-transparent print:px-1 print:py-1">Anterior {previousDateLabel && <span className="block text-[10px] text-gray-500 font-normal">({previousDateLabel})</span>}</th>
+                                    <th className="px-4 py-3 text-center w-1/12 bg-blue-50 print:bg-transparent print:px-1 print:py-1">Entrada (+)</th>
+                                    <th className="px-4 py-3 text-center w-1/12 bg-red-50 print:bg-transparent print:px-1 print:py-1">Saída (-)</th>
+                                    <th className="px-4 py-3 text-center w-1/12 bg-gray-100 font-bold text-gray-600 print:bg-transparent print:px-1 print:py-1">Teórico (=)</th>
+                                    <th className="px-4 py-3 text-center w-1/12 bg-gray-100 font-bold text-blue-600 print:bg-transparent print:px-1 print:py-1">Contado</th>
+                                    <th className="px-4 py-3 text-center w-1/12 font-bold print:px-1 print:py-1">Divergência</th>
                                 </tr>
                             </thead>
-                            <tbody className="divide-y divide-gray-100">
+                            <tbody className="divide-y divide-gray-100 print:text-xs">
                                 {data.map((item, index) => {
                                     const countedTotal = type === "grid" ? (parseInt(item.l1 || 0) + parseInt(item.l2 || 0) + parseInt(item.l3 || 0) + parseInt(item.l4 || 0)) : item.qtd;
                                     const flow = stockFlowData?.[item.nome] || { entry: 0, exit: 0 };
@@ -262,13 +282,13 @@
 
                                     return (
                                         <tr key={index} className="hover:bg-gray-50 transition-colors">
-                                            <td className="px-6 py-3 font-medium text-gray-900">{item.nome}</td>
-                                            <td className="px-4 py-3 text-center text-gray-600 bg-gray-50 border-r border-gray-100 print:bg-transparent">{prevStock}</td>
-                                            <td className="px-2 py-2 text-center bg-blue-50/30 print:bg-transparent"><input type="number" min="0" placeholder="0" className="w-20 text-center border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm bg-white print:border-none print:w-auto" value={flow.entry || ''} onChange={(e) => onFlowUpdate(category, item.nome, 'entry', e.target.value)} /></td>
-                                            <td className="px-2 py-2 text-center bg-red-50/30 print:bg-transparent"><input type="number" min="0" placeholder="0" className="w-20 text-center border-gray-300 rounded-md shadow-sm focus:ring-red-500 focus:border-red-500 sm:text-sm bg-white print:border-none print:w-auto" value={flow.exit || ''} onChange={(e) => onFlowUpdate(category, item.nome, 'exit', e.target.value)} /></td>
-                                            <td className="px-4 py-3 text-center font-bold text-gray-500 bg-gray-50 print:bg-transparent">{expected}</td>
-                                            <td className="px-4 py-3 text-center font-bold text-blue-600 bg-gray-100 border-l border-r border-gray-200 print:bg-transparent">{countedTotal}</td>
-                                            <td className={`px-4 py-3 text-center ${divColor}`}>{divergence > 0 ? `+${divergence}` : divergence}</td>
+                                            <td className="px-6 py-3 font-medium text-gray-900 print:px-2 print:py-1">{item.nome}</td>
+                                            <td className="px-4 py-3 text-center text-gray-600 bg-gray-50 border-r border-gray-100 print:bg-transparent print:px-1 print:py-1">{prevStock}</td>
+                                            <td className="px-2 py-2 text-center bg-blue-50/30 print:bg-transparent print:p-0"><input type="number" min="0" placeholder="0" className="w-20 text-center border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm bg-white print:border-none print:w-full print:h-full print:text-xs" value={flow.entry || ''} onChange={(e) => onFlowUpdate(category, item.nome, 'entry', e.target.value)} /></td>
+                                            <td className="px-2 py-2 text-center bg-red-50/30 print:bg-transparent print:p-0"><input type="number" min="0" placeholder="0" className="w-20 text-center border-gray-300 rounded-md shadow-sm focus:ring-red-500 focus:border-red-500 sm:text-sm bg-white print:border-none print:w-full print:h-full print:text-xs" value={flow.exit || ''} onChange={(e) => onFlowUpdate(category, item.nome, 'exit', e.target.value)} /></td>
+                                            <td className="px-4 py-3 text-center font-bold text-gray-500 bg-gray-50 print:bg-transparent print:px-1 print:py-1">{expected}</td>
+                                            <td className="px-4 py-3 text-center font-bold text-blue-600 bg-gray-100 border-l border-r border-gray-200 print:bg-transparent print:px-1 print:py-1">{countedTotal}</td>
+                                            <td className={`px-4 py-3 text-center print:px-1 print:py-1 ${divColor}`}>{divergence > 0 ? `+${divergence}` : divergence}</td>
                                         </tr>
                                     );
                                 })}
