@@ -42,6 +42,10 @@
             tr {
                 break-inside: avoid;
             }
+            /* Esconde elementos de interface na impressão */
+            .no-print {
+                display: none !important;
+            }
         }
     </style>
 </head>
@@ -54,7 +58,7 @@
         import { 
             Download, FileSpreadsheet, Calculator, Calendar, Building2, MapPin, 
             IceCream, Wine, ArrowRightLeft, ClipboardList, AlertCircle, Cloud, 
-            LogIn, LogOut, Save, RefreshCw, Upload, FileDown, Printer 
+            LogIn, LogOut, Save, RefreshCw, Upload, FileDown, Printer, User, Plus 
         } from 'https://esm.sh/lucide-react@0.292.0';
 
         // --- FIREBASE IMPORTS ---
@@ -79,9 +83,6 @@
         const analytics = getAnalytics(app);
         const auth = getAuth(app);
         const db = getFirestore(app);
-
-        // --- CONSTANTES ---
-        const DATES_ORDER = ['26/01', '02/02']; 
 
         // --- LISTA MESTRA DE PRODUTOS ---
         const MASTER_LIST = {
@@ -151,7 +152,7 @@
         };
 
         // --- FUNÇÃO PARA GERAR DADOS VAZIOS ---
-        const generateCompleteDataSet = (master, values = {}, responsavel = "-", unidade = "-") => {
+        const generateCompleteDataSet = (master, values = {}, responsavel = "", unidade = "-") => {
             const dataset = { responsavel, unidade };
             
             ['aguas', 'cervejas', 'zero_energeticos', 'refrigerantes', 'sucos'].forEach(cat => {
@@ -176,6 +177,30 @@
             });
 
             return dataset;
+        };
+
+        // --- HELPER DE DATAS ---
+        const getDatesForLocation = (location, dataSets) => {
+            const locMap = { 'Matriz': 'matriz', 'Mucambo': 'mucambo', 'Tianguá': 'tiangua' };
+            const prefix = locMap[location];
+            if (!prefix) return [];
+            
+            // Pega as chaves, extrai a data, remove duplicatas
+            const keys = Object.keys(dataSets).filter(k => k.startsWith(prefix));
+            const dates = keys.map(k => k.replace(prefix + '_', '').replace('_', '/'));
+            
+            // Ordena cronologicamente (Assumindo ano 2026 para simplificar sort de DD/MM)
+            return dates.sort((a, b) => {
+                const [d1, m1] = a.split('/').map(Number);
+                const [d2, m2] = b.split('/').map(Number);
+                return new Date(2026, m1-1, d1) - new Date(2026, m2-1, d2);
+            });
+        };
+
+        const getDatasetKey = (loc, date) => {
+            const locMap = { 'Matriz': 'matriz', 'Mucambo': 'mucambo', 'Tianguá': 'tiangua' };
+            const dateStr = date.replace('/', '_');
+            return `${locMap[loc]}_${dateStr}`;
         };
 
         // --- COMPONENTES ---
@@ -348,7 +373,7 @@
         // --- MAIN APP ---
         const App = () => {
             const fileInputRef = useRef(null);
-            const countingFileInputRef = useRef(null); // Ref for the counting file input
+            const countingFileInputRef = useRef(null); 
             
             const [selectedLocation, setSelectedLocation] = useState('Tianguá');
             const [selectedDate, setSelectedDate] = useState('02/02');
@@ -389,16 +414,19 @@
                 } catch (error) { console.error("Error getting document: ", error); } finally { setIsLoading(false); }
             };
 
-            const getDatasetKey = (loc, date) => {
-                const locMap = { 'Matriz': 'matriz', 'Mucambo': 'mucambo', 'Tianguá': 'tiangua' };
-                const dateMap = { '26/01': '26_01', '02/02': '02_02' };
-                return `${locMap[loc]}_${dateMap[date]}`;
-            };
-
             const getPreviousStockValues = (location, currentDate, allDataSets) => {
-                const currentIndex = DATES_ORDER.indexOf(currentDate);
+                const allDates = getDatesForLocation(location, allDataSets);
+                // Ensure current date is in the list for indexing, in case it's new
+                if (!allDates.includes(currentDate)) allDates.push(currentDate);
+                allDates.sort((a, b) => {
+                    const [d1, m1] = a.split('/').map(Number);
+                    const [d2, m2] = b.split('/').map(Number);
+                    return new Date(2026, m1-1, d1) - new Date(2026, m2-1, d2);
+                });
+
+                const currentIndex = allDates.indexOf(currentDate);
                 if (currentIndex <= 0) return {}; 
-                const prevDate = DATES_ORDER[currentIndex - 1];
+                const prevDate = allDates[currentIndex - 1];
                 const prevKey = getDatasetKey(location, prevDate);
                 const prevData = allDataSets[prevKey];
                 if (!prevData) return {}; 
@@ -415,21 +443,44 @@
                 return stockMap;
             };
 
-            const getPreviousDateLabel = (current) => {
-                const idx = DATES_ORDER.indexOf(current);
-                if (idx > 0) return DATES_ORDER[idx - 1];
+            const getPreviousDateLabel = (current, location, allDataSets) => {
+                const allDates = getDatesForLocation(location, allDataSets);
+                // If current date isn't in list yet, effectively temp add it to find prev
+                let tempDates = [...allDates];
+                if (!tempDates.includes(current)) {
+                    tempDates.push(current);
+                    tempDates.sort((a, b) => {
+                        const [d1, m1] = a.split('/').map(Number);
+                        const [d2, m2] = b.split('/').map(Number);
+                        return new Date(2026, m1-1, d1) - new Date(2026, m2-1, d2);
+                    });
+                }
+                const idx = tempDates.indexOf(current);
+                if (idx > 0) return tempDates[idx - 1];
                 return null;
             };
 
             const currentKey = getDatasetKey(selectedLocation, selectedDate);
-            const currentData = dataSets[currentKey] || generateCompleteDataSet(MASTER_LIST, {}, "-", selectedLocation);
+            const currentData = dataSets[currentKey] || generateCompleteDataSet(MASTER_LIST, {}, "", selectedLocation);
             const currentFlowData = stockFlow[currentKey] || {};
             const previousStockData = getPreviousStockValues(selectedLocation, selectedDate, dataSets);
-            const previousDateLabel = getPreviousDateLabel(selectedDate);
+            const previousDateLabel = getPreviousDateLabel(selectedDate, selectedLocation, dataSets);
+
+            // Calculate available dates for the buttons
+            const availableDates = getDatesForLocation(selectedLocation, dataSets);
+            // Always include the selected date even if it's new/empty
+            if (!availableDates.includes(selectedDate)) availableDates.push(selectedDate);
+            // Re-sort for display
+            availableDates.sort((a, b) => {
+                const [d1, m1] = a.split('/').map(Number);
+                const [d2, m2] = b.split('/').map(Number);
+                return new Date(2026, m1-1, d1) - new Date(2026, m2-1, d2);
+            });
+
 
             const handleUpdate = (category, index, field, value) => {
                 const val = value === '' ? 0 : parseInt(value);
-                const baseData = dataSets[currentKey] || generateCompleteDataSet(MASTER_LIST, {}, "-", selectedLocation);
+                const baseData = dataSets[currentKey] || generateCompleteDataSet(MASTER_LIST, {}, currentData.responsavel, selectedLocation);
                 const updatedCategory = baseData[category].map((item, i) => i === index ? { ...item, [field]: val } : item);
                 const newDataSets = { ...dataSets, [currentKey]: { ...baseData, [category]: updatedCategory } };
                 setDataSets(newDataSets);
@@ -439,6 +490,19 @@
                     updatePayload['lastUpdated'] = new Date().toISOString();
                     updatePayload['updatedBy'] = user.email;
                     updateDoc(doc(db, "estoque", "geral"), updatePayload).catch(e => console.error("Falha ao salvar contagem", e));
+                }
+            };
+
+            const handleResponsibleChange = (newVal) => {
+                const baseData = dataSets[currentKey] || generateCompleteDataSet(MASTER_LIST, {}, "", selectedLocation);
+                const updatedData = { ...baseData, responsavel: newVal };
+                const newDataSets = { ...dataSets, [currentKey]: updatedData };
+                setDataSets(newDataSets);
+                
+                if (user) {
+                    const updatePayload = {};
+                    updatePayload[`dataSets.${currentKey}`] = updatedData;
+                    updateDoc(doc(db, "estoque", "geral"), updatePayload);
                 }
             };
 
@@ -542,7 +606,7 @@
                     const data = window.XLSX.utils.sheet_to_json(ws);
                     
                     // Create base structure if needed
-                    const baseData = dataSets[currentKey] || generateCompleteDataSet(MASTER_LIST, {}, "-", selectedLocation);
+                    const baseData = dataSets[currentKey] || generateCompleteDataSet(MASTER_LIST, {}, currentData.responsavel, selectedLocation);
                     
                     // Clone structure to avoid mutation
                     const newDataSet = JSON.parse(JSON.stringify(baseData));
@@ -554,8 +618,7 @@
                         const l3 = row["LOCAL 3"] ? parseInt(row["LOCAL 3"]) : 0;
                         const l4 = row["LOCAL 4"] ? parseInt(row["LOCAL 4"]) : 0;
                         
-                        // Handle simple list quantity (mapped to qtd or sum of locals)
-                        const qtd = l1 + l2 + l3 + l4; // For simple lists that use single quantity, usually mapped to qtd
+                        const qtd = l1 + l2 + l3 + l4; 
 
                         if (produto) {
                             let categoryKey = null;
@@ -673,18 +736,54 @@
                             <div className="flex-1 bg-white border border-slate-200 rounded-xl p-5 shadow-sm print:border-none print:shadow-none print:p-0">
                                 <div className="flex items-center justify-between mb-4 print:mb-2">
                                     <div className="flex gap-2 p-1 bg-slate-50 rounded-xl print:hidden">
-                                        <LocationButton name="Matriz" onClick={() => { setSelectedLocation('Matriz'); setSelectedDate('02/02'); }} isSelected={selectedLocation === 'Matriz'} />
-                                        <LocationButton name="Mucambo" onClick={() => { setSelectedLocation('Mucambo'); setSelectedDate('02/02'); }} isSelected={selectedLocation === 'Mucambo'} />
-                                        <LocationButton name="Tianguá" onClick={() => { setSelectedLocation('Tianguá'); setSelectedDate('02/02'); }} isSelected={selectedLocation === 'Tianguá'} />
+                                        <LocationButton name="Matriz" onClick={() => { setSelectedLocation('Matriz'); setSelectedDate(availableDates[availableDates.length-1]); }} isSelected={selectedLocation === 'Matriz'} />
+                                        <LocationButton name="Mucambo" onClick={() => { setSelectedLocation('Mucambo'); setSelectedDate(availableDates[availableDates.length-1]); }} isSelected={selectedLocation === 'Mucambo'} />
+                                        <LocationButton name="Tianguá" onClick={() => { setSelectedLocation('Tianguá'); setSelectedDate(availableDates[availableDates.length-1]); }} isSelected={selectedLocation === 'Tianguá'} />
                                     </div>
-                                    <div className="flex gap-2 print:hidden">
-                                        <DateButton date="26/01" onClick={setSelectedDate} isSelected={selectedDate === '26/01'} />
-                                        <DateButton date="02/02" onClick={setSelectedDate} isSelected={selectedDate === '02/02'} />
+                                    <div className="flex gap-2 print:hidden overflow-x-auto max-w-full pb-2">
+                                        {availableDates.map(d => (
+                                            <DateButton key={d} date={d} onClick={setSelectedDate} isSelected={selectedDate === d} />
+                                        ))}
                                     </div>
                                 </div>
-                                <div className="flex items-center gap-2 text-sm text-slate-500 bg-slate-50 p-3 rounded-lg border border-slate-100 print:bg-white print:border-none print:p-0 print:text-lg print:text-black">
-                                    <Calculator size={16} className="text-blue-500 print:hidden" />
-                                    <span><strong>{selectedLocation}</strong> - Relatório de <strong>{selectedDate}/2026</strong>. {currentData.responsavel !== '-' && ` Responsável: ${currentData.responsavel}.`}</span>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-slate-50 p-4 rounded-lg border border-slate-100 print:bg-white print:border-none print:p-0 print:block">
+                                    
+                                    {/* Campo de Responsável */}
+                                    <div className="flex flex-col gap-1">
+                                        <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide print:hidden">Responsável pela Contagem</label>
+                                        <div className="flex items-center gap-2 bg-white border border-slate-300 rounded-md px-3 py-2 shadow-sm focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-blue-500 print:border-none print:p-0">
+                                            <User size={18} className="text-slate-400 print:hidden" />
+                                            <input 
+                                                type="text" 
+                                                value={currentData.responsavel || ''} 
+                                                onChange={(e) => handleResponsibleChange(e.target.value)}
+                                                placeholder="Nome do responsável"
+                                                className="w-full bg-transparent outline-none text-slate-800 placeholder-slate-400 print:font-bold print:text-lg"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    {/* Campo de Data (Edição/Criação) */}
+                                    <div className="flex flex-col gap-1 print:hidden">
+                                        <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Data da Contagem (DD/MM)</label>
+                                        <div className="flex items-center gap-2 bg-white border border-slate-300 rounded-md px-3 py-2 shadow-sm focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-blue-500">
+                                            <Calendar size={18} className="text-slate-400" />
+                                            <input 
+                                                type="text" 
+                                                value={selectedDate} 
+                                                onChange={(e) => setSelectedDate(e.target.value)}
+                                                placeholder="DD/MM"
+                                                className="w-full bg-transparent outline-none text-slate-800 placeholder-slate-400"
+                                            />
+                                        </div>
+                                        <span className="text-[10px] text-slate-400">Digite uma nova data para criar uma nova ficha automaticamente.</span>
+                                    </div>
+
+                                    {/* Exibição Data Impressão */}
+                                    <div className="hidden print:block mt-2">
+                                        Data: <strong>{selectedDate}/2026</strong>
+                                    </div>
+
                                 </div>
                             </div>
                         </div>
