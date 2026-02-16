@@ -348,6 +348,7 @@
         // --- MAIN APP ---
         const App = () => {
             const fileInputRef = useRef(null);
+            const countingFileInputRef = useRef(null); // Ref for the counting file input
             
             const [selectedLocation, setSelectedLocation] = useState('Tianguá');
             const [selectedDate, setSelectedDate] = useState('02/02');
@@ -512,6 +513,91 @@
                 reader.readAsBinaryString(file);
             };
 
+            const handleDownloadCountingTemplate = () => {
+                if (!window.XLSX) { alert("Biblioteca XLSX não carregada."); return; }
+                const rows = [["CATEGORIA", "PRODUTO", "LOCAL 1", "LOCAL 2", "LOCAL 3", "LOCAL 4"]];
+                const categories = [
+                    { key: 'aguas', label: 'ÁGUAS' }, { key: 'cervejas', label: 'CERVEJAS' }, { key: 'zero_energeticos', label: 'ZERO & ENERGÉTICOS' },
+                    { key: 'refrigerantes', label: 'REFRIGERANTES' }, { key: 'sucos', label: 'SUCOS' }, { key: 'sobremesas', label: 'SOBREMESAS' },
+                    { key: 'destilados', label: 'DESTILADOS' }, { key: 'picoles', label: 'PICOLÉS' }, { key: 'jarras_tacas', label: 'JARRAS E TAÇAS' }
+                ];
+                categories.forEach(cat => { if(MASTER_LIST[cat.key]) { MASTER_LIST[cat.key].forEach(product => { rows.push([cat.label, product, "", "", "", ""]); }); } });
+                const wb = window.XLSX.utils.book_new();
+                const ws = window.XLSX.utils.aoa_to_sheet(rows);
+                ws['!cols'] = [{ wch: 20 }, { wch: 40 }, { wch: 10 }, { wch: 10 }, { wch: 10 }, { wch: 10 }];
+                window.XLSX.utils.book_append_sheet(wb, ws, "Modelo Contagem");
+                window.XLSX.writeFile(wb, "Modelo_Ficha_Contagem.xlsx");
+            };
+
+            const handleCountingFileUpload = (e) => {
+                if (!window.XLSX) return;
+                const file = e.target.files[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = (evt) => {
+                    const bstr = evt.target.result;
+                    const wb = window.XLSX.read(bstr, { type: 'binary' });
+                    const wsname = wb.SheetNames[0];
+                    const ws = wb.Sheets[wsname];
+                    const data = window.XLSX.utils.sheet_to_json(ws);
+                    
+                    // Create base structure if needed
+                    const baseData = dataSets[currentKey] || generateCompleteDataSet(MASTER_LIST, {}, "-", selectedLocation);
+                    
+                    // Clone structure to avoid mutation
+                    const newDataSet = JSON.parse(JSON.stringify(baseData));
+
+                    data.forEach(row => {
+                        const produto = row["PRODUTO"];
+                        const l1 = row["LOCAL 1"] ? parseInt(row["LOCAL 1"]) : 0;
+                        const l2 = row["LOCAL 2"] ? parseInt(row["LOCAL 2"]) : 0;
+                        const l3 = row["LOCAL 3"] ? parseInt(row["LOCAL 3"]) : 0;
+                        const l4 = row["LOCAL 4"] ? parseInt(row["LOCAL 4"]) : 0;
+                        
+                        // Handle simple list quantity (mapped to qtd or sum of locals)
+                        const qtd = l1 + l2 + l3 + l4; // For simple lists that use single quantity, usually mapped to qtd
+
+                        if (produto) {
+                            let categoryKey = null;
+                            for (const [key, list] of Object.entries(MASTER_LIST)) {
+                                if (list.includes(produto)) { categoryKey = key; break; }
+                            }
+
+                            if (categoryKey) {
+                                // Find item in category array
+                                const itemIndex = newDataSet[categoryKey].findIndex(i => i.nome === produto);
+                                if (itemIndex !== -1) {
+                                    newDataSet[categoryKey][itemIndex].l1 = l1;
+                                    newDataSet[categoryKey][itemIndex].l2 = l2;
+                                    newDataSet[categoryKey][itemIndex].l3 = l3;
+                                    newDataSet[categoryKey][itemIndex].l4 = l4;
+                                    newDataSet[categoryKey][itemIndex].qtd = qtd;
+                                }
+                            }
+                        }
+                    });
+
+                    // Update State
+                    const updatedDataSets = { ...dataSets, [currentKey]: newDataSet };
+                    setDataSets(updatedDataSets);
+
+                    // Upload to Firebase
+                    if (user) {
+                        const updatePayload = {};
+                        updatePayload[`dataSets.${currentKey}`] = newDataSet;
+                        updatePayload['lastUpdated'] = new Date().toISOString();
+                        updatePayload['updatedBy'] = user.email;
+                        
+                        updateDoc(doc(db, "estoque", "geral"), updatePayload)
+                            .then(() => alert("Contagem importada e salva na nuvem com sucesso!"))
+                            .catch(e => { console.error("Erro ao salvar contagem", e); alert("Erro ao salvar na nuvem."); });
+                    } else { alert("Importado apenas localmente. Faça login para salvar."); }
+                    
+                    if(countingFileInputRef.current) countingFileInputRef.current.value = "";
+                };
+                reader.readAsBinaryString(file);
+            };
+
             const exportToExcel = () => {
                 if (!window.XLSX) { alert("Biblioteca XLSX não carregada."); return; }
                 const wb = window.XLSX.utils.book_new();
@@ -618,6 +704,15 @@
                             <div className="space-y-2">
                                 {viewMode === 'counting' ? (
                                     <>
+                                        <div className="bg-blue-50 p-4 rounded-lg mb-6 border border-blue-100 print:hidden">
+                                            <div className="flex justify-between items-start gap-3 mb-4">
+                                                <div className="flex items-start gap-3"><ClipboardList className="text-blue-600 mt-1 shrink-0" size={20} /><div><h4 className="font-bold text-blue-800">Modo de Contagem</h4><p className="text-sm text-blue-700">Preencha a contagem dos produtos. O sistema usará esses valores no controle de estoque.</p></div></div>
+                                                <div className="flex gap-2">
+                                                    <button onClick={handleDownloadCountingTemplate} className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-blue-200 text-blue-700 rounded-lg text-sm font-medium hover:bg-blue-50 transition-colors"><FileDown size={16} /> Baixar Modelo</button>
+                                                    <label className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors cursor-pointer shadow-sm"><Upload size={16} /> Importar Contagem <input type="file" ref={countingFileInputRef} onChange={handleCountingFileUpload} accept=".xlsx" className="hidden" /></label>
+                                                </div>
+                                            </div>
+                                        </div>
                                         <Section title="Águas" data={currentData.aguas} category="aguas" onUpdate={handleUpdate} />
                                         <Section title="Cervejas" data={currentData.cervejas} category="cervejas" onUpdate={handleUpdate} />
                                         <Section title="Cervejas Zero Álcool & Energéticos" data={currentData.zero_energeticos} category="zero_energeticos" onUpdate={handleUpdate} />
