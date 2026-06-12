@@ -1,10 +1,14 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
+    <!-- Debug overlay removido para produção -->
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Controle de Estoque - Multilojas</title>
-    <link rel="icon" type="image/jpeg" href="icon.jpeg" />
+    <meta name="description" content="Sistema de Gestão de Estoque">
+    <link rel="icon" type="image/png" href="icon.png" />
+    <meta name="theme-color" content="#003d33">
+    
+    <title>Estoque Caratininga</title>
     
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -12,10 +16,6 @@
     <!-- SheetJS (XLSX) -->
     <script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"></script>
 
-    <!-- React & ReactDOM -->
-    <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
-    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
-    
     <!-- Babel para compilar JSX no navegador -->
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
@@ -28,7 +28,7 @@
             body { 
                 -webkit-print-color-adjust: exact; 
                 print-color-adjust: exact;
-                zoom: 0.70; /* Reduz a escala para 70% para caber na folha A4 */
+                zoom: 0.55; /* Reduz a escala para 55% para caber mais itens por folha A4 */
             }
             /* Garante que cores de fundo (azul/verde/vermelho) apareçam na impressão */
             * {
@@ -49,27 +49,48 @@
             }
         }
     </style>
+
+    <script type="module">
+        import React, { useState, useEffect, useRef, useMemo, useCallback } from 'https://esm.sh/react@18.2.0';
+        import ReactDOM from 'https://esm.sh/react-dom@18.2.0/client';
+        
+        import { 
+            Download, FileSpreadsheet, Calculator, Calendar, Building2, MapPin, 
+            IceCream, Wine, ArrowRightLeft, ClipboardList, AlertCircle, Cloud, 
+            LogIn, LogOut, Save, RefreshCw, Upload, FileDown, Printer, User, Plus, TrendingUp, List, X, Package, Trash2, Utensils, Edit2, Check, Grid, GripVertical, Filter
+        } from 'https://esm.sh/lucide-react@0.292.0';
+        
+        import { 
+            PieChart, Pie, Cell, Tooltip, Legend, BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, LineChart, Line, LabelList 
+        } from 'https://esm.sh/recharts@2.10.3?deps=react@18.2.0,react-dom@18.2.0&bundle';
+        
+        // Expose to window so Babel standalone components can use them
+        window.React = React;
+        Object.assign(window, { useState, useEffect, useRef, useMemo, useCallback });
+        
+        window.ReactDOM = ReactDOM;
+        
+        Object.assign(window, {
+            Download, FileSpreadsheet, Calculator, Calendar, Building2, MapPin, 
+            IceCream, Wine, ArrowRightLeft, ClipboardList, AlertCircle, Cloud, 
+            LogIn, LogOut, Save, RefreshCw, Upload, FileDown, Printer, User, Plus, TrendingUp, List, X, Package, Trash2, Utensils, Edit2, Check, Grid, GripVertical, Filter,
+            PieChart, Pie, Cell, Tooltip, Legend, BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, LineChart, Line, LabelList
+        });
+
+        // Sinaliza que React e deps estão prontos
+        window.dispatchEvent(new Event('deps-ready'));
+    </script>
 </head>
 <body class="bg-slate-50 font-sans text-slate-800">
     <div id="root"></div>
 
-    <script type="text/babel" data-type="module">
-        import React, { useState, useEffect, useRef } from 'https://esm.sh/react@18.2.0';
-        import { createRoot } from 'https://esm.sh/react-dom@18.2.0/client';
-        import { 
-            Download, FileSpreadsheet, Calculator, Calendar, Building2, MapPin, 
-            IceCream, Wine, ArrowRightLeft, ClipboardList, AlertCircle, Cloud, 
-            LogIn, LogOut, Save, RefreshCw, Upload, FileDown, Printer, User, Plus, TrendingUp, List, X
-        } from 'https://esm.sh/lucide-react@0.292.0';
-        import { PieChart, Pie, Cell, Tooltip, Legend, BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, LineChart, Line, LabelList } from 'https://esm.sh/recharts@2.10.3?deps=react@18.2.0,react-dom@18.2.0';
-
-        // --- FIREBASE IMPORTS ---
+    <!-- FIREBASE INITIALIZATION -->
+    <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
         import { getAnalytics } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-analytics.js";
         import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
-        import { getFirestore, doc, setDoc, getDoc, updateDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+        import { getFirestore, doc, setDoc, getDoc, updateDoc, deleteField, collection, getDocs, deleteDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
-        // --- FIREBASE CONFIGURATION ---
         const firebaseConfig = {
             apiKey: "AIzaSyB9p4COfv1T1DS4CV-MvGfBuGGoWA7mk98",
             authDomain: "estoquecaratininga.firebaseapp.com",
@@ -80,13 +101,26 @@
             measurementId: "G-JRDWYW32Q4"
         };
 
-        // --- INITIALIZE FIREBASE ---
         const app = initializeApp(firebaseConfig);
-        const analytics = getAnalytics(app);
-        const auth = getAuth(app);
-        const db = getFirestore(app);
+        window.analytics = getAnalytics(app);
+        window.auth = getAuth(app);
+        window.db = getFirestore(app);
+        window.signInWithEmailAndPassword = signInWithEmailAndPassword;
+        window.signOut = signOut;
+        window.onAuthStateChanged = onAuthStateChanged;
+        window.doc = doc;
+        window.setDoc = setDoc;
+        window.getDoc = getDoc;
+        window.updateDoc = updateDoc;
+        window.deleteField = deleteField;
+        window.collection = collection;
+        window.getDocs = getDocs;
+        window.deleteDoc = deleteDoc;
+        window.dispatchEvent(new Event('firebase-ready'));
+    </script>
 
-        // --- LISTA MESTRA DE PRODUTOS ---
+    <!-- MAIN APP LOAD -->
+    <script type="text/babel">
         const MASTER_LIST = {
             aguas: [
                 "AGUA COM GAS 500ML", "AGUA DE COCO", "AGUA SEM GAS 1,5L", "AGUA SEM GAS 500ML", 
@@ -154,7 +188,7 @@
         };
 
         // --- FUNÇÃO PARA GERAR DADOS VAZIOS ---
-        const generateCompleteDataSet = (master, values = {}, responsavel = "", unidade = "-") => {
+        const generateCompleteDataSet = (master, values = {}, responsavel = "", unidade = "-", catalog = {}) => {
             const dataset = { responsavel, unidade };
             
             ['aguas', 'cervejas', 'zero_energeticos', 'refrigerantes', 'sucos'].forEach(cat => {
@@ -165,7 +199,9 @@
                         l1: vals.l1 || 0, 
                         l2: vals.l2 || 0, 
                         l3: vals.l3 || 0, 
-                        l4: vals.l4 || 0 
+                        l4: vals.l4 || 0,
+                        unitValue: catalog[itemName]?.unitValues?.[unidade] || catalog[itemName]?.unitValue || 0,
+                        code: catalog[itemName]?.code || ""
                     };
                 });
             });
@@ -174,7 +210,12 @@
                 if (!master[cat]) return;
                 dataset[cat] = master[cat].map(itemName => {
                     const qtd = values[cat]?.[itemName] || 0;
-                    return { nome: itemName, qtd };
+                    return { 
+                        nome: itemName, 
+                        qtd,
+                        unitValue: catalog[itemName]?.unitValues?.[unidade] || catalog[itemName]?.unitValue || 0,
+                        code: catalog[itemName]?.code || ""
+                    };
                 });
             });
 
@@ -183,84 +224,165 @@
 
         // --- HELPER DE DATAS ---
         const getDatesForLocation = (location, dataSets) => {
-            const locMap = { 'Matriz': 'matriz', 'Mucambo': 'mucambo', 'Tianguá': 'tiangua' };
+            const locMap = { 'Matriz': 'matriz', 'Mucambo': 'mucambo', 'Tianguá': 'tiangua', 'Frecheirinha': 'frecheirinha' };
             const prefix = locMap[location];
             if (!prefix) return [];
             
-            // Pega as chaves, extrai a data, remove duplicatas
+            // Pega as chaves, extrai a data, remove duplicatas (ignora sufixo _diaria)
             const keys = Object.keys(dataSets).filter(k => k.startsWith(prefix));
-            const dates = keys.map(k => k.replace(prefix + '_', '').replace('_', '/'));
+            const datesSet = new Set();
+            keys.forEach(k => {
+                // Remove prefix, then remove _diaria suffix if present
+                let datePart = k.replace(prefix + '_', '');
+                if (datePart.endsWith('_diaria')) datePart = datePart.slice(0, -7);
+                datesSet.add(datePart.replace('_', '/'));
+            });
             
-            // Ordena cronologicamente (Assumindo ano 2026 para simplificar sort de DD/MM)
-            return dates.sort((a, b) => {
+            return Array.from(datesSet).sort((a, b) => {
                 const [d1, m1] = a.split('/').map(Number);
                 const [d2, m2] = b.split('/').map(Number);
-                return new Date(2026, m1-1, d1) - new Date(2026, m2-1, d2);
+                return new Date(new Date().getFullYear(), m1-1, d1) - new Date(new Date().getFullYear(), m2-1, d2);
             });
         };
 
-        const getDatasetKey = (loc, date) => {
-            const locMap = { 'Matriz': 'matriz', 'Mucambo': 'mucambo', 'Tianguá': 'tiangua' };
+        const getDatasetKey = (loc, date, countType = 'semanal') => {
+            const locMap = { 'Matriz': 'matriz', 'Mucambo': 'mucambo', 'Tianguá': 'tiangua', 'Frecheirinha': 'frecheirinha' };
             const dateStr = date.replace('/', '_');
-            return `${locMap[loc]}_${dateStr}`;
+            const suffix = countType === 'diaria' ? '_diaria' : '';
+            return `${locMap[loc]}_${dateStr}${suffix}`;
         };
 
         // --- COMPONENTES ---
 
-        const Section = ({ title, data, category, onUpdate, type = "grid", isEditing = false }) => {
-            if (!data || data.length === 0) return null;
+        const Section = ({ title, data, category, onUpdate, type = "grid", isEditing = false, catalog = {}, selectedLocation, isPrintSheetMode = false }) => {
+            const [sortConfig, setSortConfig] = window.React.useState({ key: 'nome', direction: 'asc' });
+            
+            const filteredData = React.useMemo(() => {
+                if (!data) return [];
+                return data.filter(item => {
+                    const isActive = catalog[item.nome]?.active !== false;
+                    const total = type === "grid" ? ((parseInt(item.l1)||0) + (parseInt(item.l2)||0) + (parseInt(item.l3)||0) + (parseInt(item.l4)||0)) : (parseInt(item.qtd)||0);
+                    return isActive || total > 0;
+                });
+            }, [data, catalog, type]);
+
+            if (filteredData.length === 0) return null;
+
+            const handleSort = (key) => {
+                if (sortConfig.key === key) {
+                    if (sortConfig.direction === 'asc') setSortConfig({ key, direction: 'desc' });
+                    else setSortConfig({ key: 'nome', direction: 'asc' });
+                } else {
+                    setSortConfig({ key, direction: 'asc' });
+                }
+            };
+
+            const sortedData = [...data].sort((a, b) => {
+                if (sortConfig.key === 'code') {
+                    const aVal = catalog[a.nome] ? (parseInt(catalog[a.nome].code) || 0) : 0;
+                    const bVal = catalog[b.nome] ? (parseInt(catalog[b.nome].code) || 0) : 0;
+                    return sortConfig.direction === 'asc' ? aVal - bVal : bVal - aVal;
+                } else {
+                    return sortConfig.direction === 'asc' ? a.nome.localeCompare(b.nome) : b.nome.localeCompare(a.nome);
+                }
+            });
 
             return (
-                <div className="mb-8 bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden break-inside-avoid print:mb-2 print:border-gray-300">
-                    <div className="bg-gray-50 px-6 py-4 border-b border-gray-200 print:py-2 print:px-4">
-                        <h3 className="text-lg font-semibold text-gray-800 flex items-center gap-2 print:text-sm">
-                            {title}
-                            <span className="text-xs font-normal text-gray-500 bg-gray-200 px-2 py-1 rounded-full print:hidden">
-                                {data.length} itens
-                            </span>
-                        </h3>
-                    </div>
+                <div className={`mb-8 bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden print:mb-2 print:border-gray-400 ${!isPrintSheetMode ? 'break-inside-avoid' : ''}`}>
+                    {!isPrintSheetMode && (
+                        <div className="bg-white px-6 py-4 print:py-3 print:px-4">
+                            <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2 print:text-lg">
+                                <span className="w-2 h-6 bg-[#00a86b] rounded-sm mr-1"></span>
+                                {title}
+                                <span className="text-xs font-semibold text-slate-500 bg-slate-100 px-2.5 py-1 rounded-full print:hidden">
+                                    {data.length} itens
+                                </span>
+                            </h3>
+                        </div>
+                    )}
                     <div className="overflow-x-auto">
-                        <table className="w-full text-sm text-left">
-                            <thead className="text-xs text-gray-700 uppercase bg-gray-50">
+                        <table className="w-full text-sm text-left border-t border-slate-100">
+                            <thead className="text-[10px] lg:text-xs text-white uppercase bg-[#003d33]">
+                                {isPrintSheetMode && (
+                                    <tr>
+                                        <th colSpan="10" className="px-2 py-1 text-center text-sm bg-gray-200 text-gray-800 border-b border-black font-bold tracking-widest print:bg-gray-200 print:text-black">
+                                            {title}
+                                        </th>
+                                    </tr>
+                                )}
                                 {type === "grid" ? (
                                     <tr>
-                                        <th className="px-6 py-3 w-1/3 print:px-2 print:py-1">Produto</th>
-                                        <th className="px-4 py-3 text-center bg-blue-50 print:bg-transparent print:px-1 print:py-1">Local 1</th>
-                                        <th className="px-4 py-3 text-center bg-green-50 print:bg-transparent print:px-1 print:py-1">Local 2</th>
-                                        <th className="px-4 py-3 text-center bg-yellow-50 print:bg-transparent print:px-1 print:py-1">Local 3</th>
-                                        <th className="px-4 py-3 text-center bg-purple-50 print:bg-transparent print:px-1 print:py-1">Local 4</th>
-                                        <th className="px-6 py-3 text-center font-bold bg-gray-100 print:bg-transparent print:px-2 print:py-1">Total</th>
+                                        <th onClick={() => handleSort('code')} className={`px-2 py-3 lg:px-4 w-12 lg:w-16 text-center font-semibold tracking-wide cursor-pointer hover:bg-black/10 transition-colors print:px-1 print:py-1 ${isPrintSheetMode ? 'print:border-black border border-slate-300' : ''}`}>Cód. {sortConfig.key === 'code' ? (sortConfig.direction === 'asc' ? '↑' : '↓') : ''}</th>
+                                        <th onClick={() => handleSort('nome')} className={`px-3 py-3 lg:px-6 w-1/4 font-semibold tracking-wide cursor-pointer hover:bg-black/10 transition-colors print:px-2 print:py-2 whitespace-nowrap ${isPrintSheetMode ? 'print:border-black border border-slate-300' : ''}`}>Produto {sortConfig.key === 'nome' ? (sortConfig.direction === 'asc' ? '↑' : '↓') : ''}</th>
+                                        <th className={`px-2 py-3 text-center font-semibold tracking-wide border-white/10 print:bg-transparent print:px-1 print:py-2 ${isPrintSheetMode ? 'print:border-black border border-slate-300' : 'border-r'}`}>Loc 1</th>
+                                        <th className={`px-2 py-3 text-center font-semibold tracking-wide border-white/10 print:bg-transparent print:px-1 print:py-2 ${isPrintSheetMode ? 'print:border-black border border-slate-300' : 'border-r'}`}>Loc 2</th>
+                                        <th className={`px-2 py-3 text-center font-semibold tracking-wide border-white/10 print:bg-transparent print:px-1 print:py-2 ${isPrintSheetMode ? 'print:border-black border border-slate-300' : 'border-r'}`}>Loc 3</th>
+                                        <th className={`px-2 py-3 text-center font-semibold tracking-wide print:bg-transparent print:px-1 print:py-2 ${isPrintSheetMode ? 'print:border-black border border-slate-300' : ''}`}>Loc 4</th>
+                                        {!isPrintSheetMode && (
+                                            <>
+                                                <th className="px-3 py-3 lg:px-6 text-center font-bold bg-black/20 print:bg-transparent print:px-2 print:py-1">Total</th>
+                                                <th className="px-2 py-3 lg:px-4 text-center font-semibold tracking-wide print:bg-transparent print:px-1 print:py-1 whitespace-nowrap">Valor Unit.</th>
+                                                <th className="px-2 py-3 lg:px-4 text-center font-bold bg-black/20 print:bg-transparent print:px-1 print:py-1 whitespace-nowrap">Valor Total</th>
+                                            </>
+                                        )}
                                     </tr>
                                 ) : (
                                     <tr>
-                                        <th className="px-6 py-3 w-2/3 print:px-2 print:py-1">Produto</th>
-                                        <th className="px-6 py-3 text-center w-1/3 font-bold bg-gray-100 print:bg-transparent print:px-2 print:py-1">Quantidade</th>
+                                        <th onClick={() => handleSort('code')} className={`px-2 py-3 lg:px-4 w-12 lg:w-16 text-center font-semibold tracking-wide cursor-pointer hover:bg-black/10 transition-colors print:px-1 print:py-1 ${isPrintSheetMode ? 'print:border-black border border-slate-300' : ''}`}>Cód. {sortConfig.key === 'code' ? (sortConfig.direction === 'asc' ? '↑' : '↓') : ''}</th>
+                                        <th onClick={() => handleSort('nome')} className={`px-3 py-3 lg:px-6 w-1/2 font-semibold tracking-wide cursor-pointer hover:bg-black/10 transition-colors print:px-2 print:py-1 whitespace-nowrap ${isPrintSheetMode ? 'print:border-black border border-slate-300' : ''}`}>Produto {sortConfig.key === 'nome' ? (sortConfig.direction === 'asc' ? '↑' : '↓') : ''}</th>
+                                        <th className={`px-3 py-3 lg:px-6 text-center w-1/4 font-bold bg-black/20 print:bg-transparent print:px-2 print:py-2 ${isPrintSheetMode ? 'print:border-black border border-slate-300' : ''}`}>Quantidade</th>
+                                        {!isPrintSheetMode && (
+                                            <>
+                                                <th className="px-2 py-3 lg:px-4 text-center font-semibold tracking-wide print:bg-transparent print:px-1 print:py-1 whitespace-nowrap">Valor Unit.</th>
+                                                <th className="px-2 py-3 lg:px-4 text-center font-bold bg-black/20 print:bg-transparent print:px-1 print:py-1 whitespace-nowrap">Valor Total</th>
+                                            </>
+                                        )}
                                     </tr>
                                 )}
                             </thead>
-                            <tbody className="divide-y divide-gray-100 print:text-xs">
-                                {data.map((item, index) => {
+                            <tbody className={`divide-y divide-slate-100 ${isPrintSheetMode ? 'print:text-base print:divide-black' : 'print:text-xs'}`}>
+                                {sortedData.map((item) => {
                                     const total = type === "grid" 
                                         ? (parseInt(item.l1 || 0) + parseInt(item.l2 || 0) + parseInt(item.l3 || 0) + parseInt(item.l4 || 0))
                                         : item.qtd;
                                     const isZero = total === 0;
+                                    const displayCode = catalog[item.nome]?.code || item.code || '-';
+                                    const unitValue = catalog[item.nome]?.unitValues?.[selectedLocation] || 0;
                                     return (
-                                        <tr key={index} className={`transition-colors ${isZero ? 'bg-white opacity-60 hover:opacity-100 print:opacity-50' : 'bg-white hover:bg-gray-50'}`}>
-                                            <td className="px-6 py-3 font-medium text-gray-900 print:px-2 print:py-1">{item.nome}</td>
+                                        <tr key={item.nome} className={`transition-colors ${isZero && !isPrintSheetMode ? 'bg-white opacity-60 hover:opacity-100 print:opacity-50' : 'bg-white hover:bg-gray-50'}`}>
+                                            <td className={`px-4 py-3 text-center text-gray-400 text-xs font-bold print:p-1 ${isPrintSheetMode ? 'border border-slate-300 print:border-black' : ''}`}>{displayCode}</td>
+                                            <td className={`px-6 py-3 font-medium text-gray-900 uppercase print:px-2 print:py-2 ${isPrintSheetMode ? 'border border-slate-300 print:border-black' : ''}`}>{item.nome}</td>
                                             {type === "grid" ? (
                                                 <>
                                                     {['l1', 'l2', 'l3', 'l4'].map(local => (
-                                                        <td key={local} className="px-2 py-2 text-center print:p-0">
-                                                            <input type="number" min="0" disabled={!isEditing} className={`w-16 text-center rounded-md shadow-sm sm:text-sm print:border-none print:w-full print:h-full print:text-xs ${item[local] > 0 ? 'font-bold text-gray-900' : 'text-gray-400'} ${isEditing ? 'border-gray-300 focus:ring-blue-500 focus:border-blue-500 bg-transparent hover:bg-white' : 'border-transparent bg-transparent cursor-default'}`} value={item[local]} onChange={(e) => onUpdate(category, index, local, e.target.value)} />
+                                                        <td key={local} className={`px-2 py-2 text-center print:p-1 ${isPrintSheetMode ? 'border border-slate-300 print:border-black' : ''}`}>
+                                                            {!isPrintSheetMode && (
+                                                                <input type="number" min="0" placeholder="0" disabled={!isEditing} className={`w-16 text-center rounded-md shadow-sm sm:text-sm print:border-none print:w-full print:h-full print:text-xs ${item[local] > 0 ? 'font-bold text-gray-900' : 'text-gray-400'} ${isEditing ? 'border-gray-300 focus:ring-blue-500 focus:border-blue-500 bg-transparent hover:bg-white' : 'border-transparent bg-transparent cursor-default'}`} value={item[local] || ''} onChange={(e) => onUpdate(category, item.nome, local, e.target.value)} />
+                                                            )}
                                                         </td>
                                                     ))}
-                                                    <td className={`px-6 py-3 text-center font-bold bg-gray-50 print:bg-transparent print:px-2 print:py-1 ${isZero ? 'text-gray-400' : 'text-blue-600'}`}>{total}</td>
+                                                    {!isPrintSheetMode && (
+                                                        <>
+                                                            <td className={`px-6 py-3 text-center font-bold bg-gray-50 print:bg-transparent print:px-2 print:py-1 ${isZero ? 'text-gray-400' : 'text-blue-600'}`}>{total.toLocaleString('pt-BR')}</td>
+                                                            <td className="px-4 py-3 text-center text-gray-500">R$ {unitValue.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                                                            <td className={`px-4 py-3 text-center font-bold bg-gray-50 ${isZero ? 'text-gray-400' : 'text-slate-700'}`}>R$ {(total * unitValue).toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                                                        </>
+                                                    )}
                                                 </>
                                             ) : (
-                                                <td className="px-6 py-3 text-center print:px-2 print:py-1">
-                                                    <input type="number" min="0" disabled={!isEditing} className={`w-24 text-center rounded-md shadow-sm sm:text-sm print:border-none print:w-auto print:text-xs ${item.qtd > 0 ? 'text-blue-600 font-bold' : 'text-gray-400 font-bold'} ${isEditing ? 'border-gray-300 focus:ring-blue-500 focus:border-blue-500 bg-gray-50' : 'border-transparent bg-transparent cursor-default'}`} value={item.qtd} onChange={(e) => onUpdate(category, index, 'qtd', e.target.value)} />
-                                                </td>
+                                                <>
+                                                    <td className={`px-6 py-3 text-center print:px-2 print:py-1 ${isPrintSheetMode ? 'border border-slate-300 print:border-black min-w-[120px]' : ''}`}>
+                                                        {!isPrintSheetMode && (
+                                                            <input type="number" min="0" placeholder="0" disabled={!isEditing} className={`w-24 text-center rounded-md shadow-sm sm:text-sm print:border-none print:w-auto print:text-xs ${item.qtd > 0 ? 'text-blue-600 font-bold' : 'text-gray-400 font-bold'} ${isEditing ? 'border-gray-300 focus:ring-blue-500 focus:border-blue-500 bg-gray-50' : 'border-transparent bg-transparent cursor-default'}`} value={item.qtd || ''} onChange={(e) => onUpdate(category, item.nome, 'qtd', e.target.value)} />
+                                                        )}
+                                                    </td>
+                                                    {!isPrintSheetMode && (
+                                                        <>
+                                                            <td className="px-4 py-3 text-center text-gray-500">R$ {unitValue.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                                                            <td className={`px-4 py-3 text-center font-bold bg-gray-50 ${isZero ? 'text-gray-400' : 'text-slate-700'}`}>R$ {(total * unitValue).toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                                                        </>
+                                                    )}
+                                                </>
                                             )}
                                         </tr>
                                     );
@@ -272,1160 +394,201 @@
             );
         };
 
-        const ControlSection = ({ title, data, category, stockFlowData, previousStockData, onFlowUpdate, previousDateLabel, type = "grid", isEditing = false }) => {
-            if (!data || data.length === 0) return null;
+        const ControlSection = ({ title, data, category, stockFlowData, previousStockData, previousDateMap, onFlowUpdate, previousDateLabel, catalog = {}, type = "grid", isEditing = false, selectedLocation, currentDate, hideZeroProducts = false, printMode = 'full' }) => {
+            const [sortConfig, setSortConfig] = window.React.useState({ key: 'nome', direction: 'asc' });
+            
+            const filteredData = React.useMemo(() => {
+                if (!data) return [];
+                return data.filter(item => {
+                    const isActive = catalog[item.nome]?.active !== false;
+                    const countedTotal = type === "grid" ? ((parseInt(item.l1)||0) + (parseInt(item.l2)||0) + (parseInt(item.l3)||0) + (parseInt(item.l4)||0)) : (parseInt(item.qtd)||0);
+                    const flow = stockFlowData?.[item.nome] || { entry: 0, exit: 0 };
+                    const prevStock = previousStockData?.[item.nome] || 0;
+                    const expected = (prevStock + (parseInt(flow.entry)||0)) - (parseInt(flow.exit)||0);
+                    const divergence = countedTotal - expected;
+                    
+                    if (printMode === 'divergences' && divergence === 0) return false;
+                    
+                    if (hideZeroProducts) {
+                        if (prevStock === 0 && expected === 0 && countedTotal === 0) return false;
+                    }
+
+                    const hasData = countedTotal > 0 || prevStock > 0 || flow.entry > 0 || flow.exit > 0;
+                    return isActive || hasData;
+                });
+            }, [data, catalog, type, stockFlowData, previousStockData, hideZeroProducts, printMode]);
+
+            if (filteredData.length === 0) return null;
+
+            const handleSort = (key) => {
+                if (sortConfig.key === key) {
+                    if (sortConfig.direction === 'asc') setSortConfig({ key, direction: 'desc' });
+                    else setSortConfig({ key: 'nome', direction: 'asc' });
+                } else {
+                    setSortConfig({ key, direction: 'asc' });
+                }
+            };
+
+            const sortedData = [...filteredData].sort((a, b) => {
+                if (sortConfig.key === 'code') {
+                    const aVal = catalog[a.nome] ? (parseInt(catalog[a.nome].code) || 0) : 0;
+                    const bVal = catalog[b.nome] ? (parseInt(catalog[b.nome].code) || 0) : 0;
+                    return sortConfig.direction === 'asc' ? aVal - bVal : bVal - aVal;
+                } else {
+                    return sortConfig.direction === 'asc' ? a.nome.localeCompare(b.nome) : b.nome.localeCompare(a.nome);
+                }
+            });
 
             return (
-                <div className="mb-8 bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden break-inside-avoid print:mb-2 print:border-gray-300">
-                    <div className="bg-gray-50 px-6 py-4 border-b border-gray-200 print:py-2 print:px-4">
-                        <h3 className="text-lg font-semibold text-gray-800 flex items-center gap-2 print:text-sm">
+                <div className="mb-8 bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden print:mb-2 print:border-gray-300">
+                    <div className="bg-white px-6 py-4 print:hidden">
+                        <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+                            <span className="w-2 h-6 bg-[#00a86b] rounded-sm mr-1"></span>
                             {title}
-                            <span className="text-xs font-normal text-gray-500 bg-gray-200 px-2 py-1 rounded-full print:hidden">Controle & Divergência</span>
+                            <span className="text-xs font-semibold text-slate-500 bg-slate-100 px-2.5 py-1 rounded-full">Controle & Divergência</span>
                         </h3>
                     </div>
                     <div className="overflow-x-auto">
-                        <table className="w-full text-sm text-left">
-                            <thead className="text-xs text-gray-700 uppercase bg-gray-50">
+                        <table className="w-full text-sm text-left border-t border-slate-100">
+                            <thead className="text-[10px] xl:text-xs text-white uppercase bg-[#003d33]">
+                                <tr className="hidden print:table-row bg-white text-slate-800 border-b-2 border-black">
+                                    <th colSpan="11" className="text-left font-bold py-2 px-1 text-sm uppercase">
+                                        <span className="inline-block w-1.5 h-4 bg-[#00a86b] rounded-sm mr-1 align-middle"></span>
+                                        {title}
+                                    </th>
+                                </tr>
                                 <tr>
-                                    <th className="px-6 py-3 w-1/4 print:px-2 print:py-1">Produto</th>
-                                    <th className="px-4 py-3 text-center w-1/12 bg-gray-100 font-semibold text-gray-700 print:bg-transparent print:px-1 print:py-1">Anterior {previousDateLabel && <span className="block text-[10px] text-gray-500 font-normal">({previousDateLabel})</span>}</th>
-                                    <th className="px-4 py-3 text-center w-1/12 bg-blue-50 print:bg-transparent print:px-1 print:py-1">Entrada (+)</th>
-                                    <th className="px-4 py-3 text-center w-1/12 bg-red-50 print:bg-transparent print:px-1 print:py-1">Saída (-)</th>
-                                    <th className="px-4 py-3 text-center w-1/12 bg-gray-100 font-bold text-gray-600 print:bg-transparent print:px-1 print:py-1">Teórico (=)</th>
-                                    <th className="px-4 py-3 text-center w-1/12 bg-gray-100 font-bold text-blue-600 print:bg-transparent print:px-1 print:py-1">Contado</th>
-                                    <th className="px-4 py-3 text-center w-1/12 font-bold print:px-1 print:py-1">Divergência</th>
+                                    <th onClick={() => handleSort('code')} className="px-1 py-3 lg:px-2 w-10 lg:w-16 text-center font-semibold tracking-wide cursor-pointer hover:bg-black/10 transition-colors print:px-1 print:py-1">Cód. {sortConfig.key === 'code' ? (sortConfig.direction === 'asc' ? '↑' : '↓') : ''}</th>
+                                    <th onClick={() => handleSort('nome')} className="px-2 py-3 lg:px-4 font-semibold tracking-wide cursor-pointer hover:bg-black/10 transition-colors print:px-2 print:py-1 whitespace-nowrap">Produto {sortConfig.key === 'nome' ? (sortConfig.direction === 'asc' ? '↑' : '↓') : ''}</th>
+                                    <th className="px-1 py-3 lg:px-2 text-center font-semibold tracking-wide border-r border-white/10 print:bg-transparent print:px-1 print:py-1 whitespace-nowrap">Ant. {previousDateLabel && <span className="block text-[9px] text-white/70 font-normal">({previousDateLabel})</span>}</th>
+                                    <th className="px-1 py-3 lg:px-2 text-center font-semibold tracking-wide border-r border-white/10 print:bg-transparent print:px-1 print:py-1 whitespace-nowrap">Ent. (+)</th>
+                                    <th className="px-1 py-3 lg:px-2 text-center font-semibold tracking-wide border-r border-white/10 print:bg-transparent print:px-1 print:py-1 whitespace-nowrap">Saí. (-)</th>
+                                    <th className="px-1 py-3 lg:px-2 text-center font-semibold tracking-wide bg-black/20 print:bg-transparent print:px-1 print:py-1 whitespace-nowrap">Teór. (=)</th>
+                                    <th className="px-1 py-3 lg:px-2 text-center font-bold tracking-wide border-l border-white/10 print:bg-transparent print:px-1 print:py-1 whitespace-nowrap">Contagem<br/>{currentDate && <span className="block text-[9px] text-white/70 font-normal">({currentDate})</span>}</th>
+                                    <th className="px-1 py-3 lg:px-2 text-center font-bold tracking-wide print:px-1 print:py-1 whitespace-nowrap">Divergência</th>
+                                    <th className="px-1 py-3 lg:px-2 text-center font-semibold tracking-wide print:bg-transparent print:px-1 print:py-1 whitespace-nowrap">V. Unit</th>
+                                    <th className="px-1 py-3 lg:px-2 text-center font-bold bg-black/20 print:bg-transparent print:px-1 print:py-1 whitespace-nowrap leading-tight">Valor Total<br/><span className="text-[9px] font-normal opacity-80">(Contagem)</span></th>
+                                    <th className="px-1 py-3 lg:px-2 text-center font-bold bg-black/20 border-l border-white/10 print:bg-transparent print:px-1 print:py-1 whitespace-nowrap leading-tight">Valor Total<br/><span className="text-[9px] font-normal opacity-80">(Divergência)</span></th>
                                 </tr>
                             </thead>
-                            <tbody className="divide-y divide-gray-100 print:text-xs">
-                                {data.map((item, index) => {
+                            <tbody className="divide-y divide-slate-100 print:text-xs">
+                                {sortedData.map((item) => {
                                     const countedTotal = type === "grid" ? (parseInt(item.l1 || 0) + parseInt(item.l2 || 0) + parseInt(item.l3 || 0) + parseInt(item.l4 || 0)) : item.qtd;
                                     const flow = stockFlowData?.[item.nome] || { entry: 0, exit: 0 };
                                     const prevStock = previousStockData?.[item.nome] || 0;
                                     const expected = (prevStock + (flow.entry || 0)) - (flow.exit || 0);
                                     const divergence = countedTotal - expected;
-                                    let divColor = "text-gray-400";
-                                    if (divergence < 0) divColor = "text-red-600 font-bold bg-red-50 print:bg-transparent";
-                                    if (divergence > 0) divColor = "text-blue-600 font-bold bg-blue-50 print:bg-transparent";
+                                    const divColor = divergence < 0 ? "text-red-600 font-bold bg-red-50 print:bg-transparent" : divergence > 0 ? "text-blue-600 font-bold bg-blue-50 print:bg-transparent" : "text-gray-400";
+                                    const displayCode = catalog[item.nome]?.code || item.code || '-';
+                                    const unitValue = catalog[item.nome]?.unitValues?.[selectedLocation] || 0;
 
                                     return (
-                                        <tr key={index} className="hover:bg-gray-50 transition-colors">
-                                            <td className="px-6 py-3 font-medium text-gray-900 print:px-2 print:py-1">{item.nome}</td>
-                                            <td className="px-4 py-3 text-center text-gray-600 bg-gray-50 border-r border-gray-100 print:bg-transparent print:px-1 print:py-1">{prevStock}</td>
+                                        <tr key={item.nome} className="hover:bg-gray-50 transition-colors">
+                                            <td className="px-4 py-3 text-center text-gray-400 text-xs font-bold print:p-0">{displayCode}</td>
+                                            <td className="px-6 py-3 font-medium text-gray-900 uppercase print:px-2 print:py-1">{item.nome}</td>
+                                            <td className="px-4 py-3 text-center text-gray-600 bg-gray-50 border-r border-gray-100 print:bg-transparent print:px-1 print:py-1">
+                                                {prevStock}
+                                                {previousDateMap?.[item.nome] && (
+                                                    <div className="mt-1 flex justify-center">
+                                                        <span className={`inline-block px-1.5 py-0.5 rounded border text-[9px] font-bold leading-tight print:border-none print:bg-transparent print:p-0 print:text-gray-400 ${previousDateMap[item.nome].includes('(D)') ? 'text-blue-600 bg-blue-50 border-blue-200' : 'text-purple-600 bg-purple-50 border-purple-200'}`}>
+                                                            {previousDateMap[item.nome].replace(' (D)', ' Diária').replace(' (S)', ' Semanal')}
+                                                        </span>
+                                                    </div>
+                                                )}
+                                            </td>
                                             <td className="px-2 py-2 text-center bg-blue-50/30 print:bg-transparent print:p-0"><input type="number" min="0" placeholder="0" disabled={!isEditing} className={`w-20 text-center rounded-md shadow-sm sm:text-sm print:border-none print:w-full print:h-full print:text-xs ${isEditing ? 'border-gray-300 focus:ring-blue-500 focus:border-blue-500 bg-white' : 'border-transparent bg-transparent cursor-default font-bold'}`} value={flow.entry || ''} onChange={(e) => onFlowUpdate(category, item.nome, 'entry', e.target.value)} /></td>
                                             <td className="px-2 py-2 text-center bg-red-50/30 print:bg-transparent print:p-0"><input type="number" min="0" placeholder="0" disabled={!isEditing} className={`w-20 text-center rounded-md shadow-sm sm:text-sm print:border-none print:w-full print:h-full print:text-xs ${isEditing ? 'border-gray-300 focus:ring-red-500 focus:border-red-500 bg-white' : 'border-transparent bg-transparent cursor-default font-bold'}`} value={flow.exit || ''} onChange={(e) => onFlowUpdate(category, item.nome, 'exit', e.target.value)} /></td>
-                                            <td className="px-4 py-3 text-center font-bold text-gray-500 bg-gray-50 print:bg-transparent print:px-1 print:py-1">{expected}</td>
-                                            <td className="px-4 py-3 text-center font-bold text-blue-600 bg-gray-100 border-l border-r border-gray-200 print:bg-transparent print:px-1 print:py-1">{countedTotal}</td>
-                                            <td className={`px-4 py-3 text-center print:px-1 print:py-1 ${divColor}`}>{divergence > 0 ? `+${divergence}` : divergence}</td>
+                                            <td className="px-4 py-3 text-center font-bold text-gray-500 bg-gray-50 print:bg-transparent print:px-1 print:py-1">{expected.toLocaleString('pt-BR')}</td>
+                                            <td className="px-4 py-3 text-center font-bold text-blue-600 bg-gray-100 border-l border-r border-gray-200 print:bg-transparent print:px-1 print:py-1">{countedTotal.toLocaleString('pt-BR')}</td>
+                                            <td className={`px-4 py-3 text-center print:px-1 print:py-1 ${divColor}`}>{divergence > 0 ? `+${divergence.toLocaleString('pt-BR')}` : divergence.toLocaleString('pt-BR')}</td>
+                                            <td className="px-4 py-3 text-center text-gray-500">R$ {unitValue.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                                            <td className={`px-4 py-3 text-center font-bold bg-gray-50 ${countedTotal === 0 ? 'text-gray-400' : 'text-slate-700'}`}>R$ {(countedTotal * unitValue).toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                                            <td className={`px-4 py-3 text-center font-bold bg-gray-50 border-l border-gray-100 ${divergence !== 0 ? divColor : 'text-gray-400'}`}>{divergence !== 0 ? (divergence > 0 ? '+ ' : '- ') : ''}R$ {Math.abs(divergence * unitValue).toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
                                         </tr>
                                     );
                                 })}
                             </tbody>
+                            <tfoot className="bg-slate-50 border-t-2 border-slate-200 text-xs font-bold text-slate-800 uppercase print:text-[10px]">
+                                {(() => {
+                                    let totalCounted = 0;
+                                    let totalDivergence = 0;
+                                    let totalValueCounted = 0;
+                                    let totalValueDiv = 0;
+
+                                    sortedData.forEach((item) => {
+                                        const countedTotal = type === "grid" ? (parseInt(item.l1 || 0) + parseInt(item.l2 || 0) + parseInt(item.l3 || 0) + parseInt(item.l4 || 0)) : item.qtd;
+                                        const flow = stockFlowData?.[item.nome] || { entry: 0, exit: 0 };
+                                        const prevStock = previousStockData?.[item.nome] || 0;
+                                        const expected = (prevStock + (flow.entry || 0)) - (flow.exit || 0);
+                                        const divergence = countedTotal - expected;
+                                        const unitValue = catalog[item.nome]?.unitValues?.[selectedLocation] || 0;
+
+                                        totalCounted += countedTotal;
+                                        totalDivergence += divergence;
+                                        totalValueCounted += (countedTotal * unitValue);
+                                        totalValueDiv += (divergence * unitValue);
+                                    });
+
+                                    return (
+                                        <tr>
+                                            <td colSpan="6" className="px-4 py-4 text-right">Total da Categoria:</td>
+                                            <td className="px-4 py-4 text-center text-blue-700">{totalCounted.toLocaleString('pt-BR')}</td>
+                                            <td className={`px-4 py-4 text-center ${totalDivergence > 0 ? 'text-blue-700' : totalDivergence < 0 ? 'text-red-700' : 'text-slate-500'}`}>{totalDivergence > 0 ? `+${totalDivergence.toLocaleString('pt-BR')}` : totalDivergence.toLocaleString('pt-BR')}</td>
+                                            <td className="px-4 py-4 text-center text-slate-400">-</td>
+                                            <td className="px-4 py-4 text-center text-slate-800">R$ {totalValueCounted.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                                            <td className={`px-4 py-4 text-center ${totalValueDiv > 0 ? 'text-blue-700' : totalValueDiv < 0 ? 'text-red-700' : 'text-slate-500'}`}>{totalValueDiv !== 0 ? (totalValueDiv > 0 ? '+ ' : '- ') : ''}R$ {Math.abs(totalValueDiv).toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                                        </tr>
+                                    );
+                                })()}
+                            </tfoot>
                         </table>
                     </div>
                 </div>
             );
         };
 
-        const LoginModal = ({ isOpen, onClose, onLogin }) => {
-            const [email, setEmail] = useState('');
-            const [password, setPassword] = useState('');
-            const [error, setError] = useState('');
 
-            if (!isOpen) return null;
+        window.MASTER_LIST = MASTER_LIST;
+        window.generateCompleteDataSet = generateCompleteDataSet;
+        window.getDatesForLocation = getDatesForLocation;
+        window.getDatasetKey = getDatasetKey;
+        window.Section = Section;
+        window.ControlSection = ControlSection;
+    </script>
 
-            const handleSubmit = async (e) => {
-                e.preventDefault();
-                setError('');
-                try {
-                    await onLogin(email, password);
-                    onClose();
-                } catch (err) {
-                    setError("Falha no login: Verifique suas credenciais.");
-                    console.error(err);
-                }
-            };
+    <!-- LOAD COMPONENTS SEQUENTIALLY -->
+    <script type="text/babel" src="components/LoginModal.js"></script>
+    <script type="text/babel" src="components/CreateCountModal.js"></script>
+    <script type="text/babel" src="components/Buttons.js"></script>
+    <script type="text/babel" src="components/AnalyzedProductsModal.js"></script>
+    <script type="text/babel" src="components/EvolutionReport.js"></script>
+    <script type="text/babel" src="components/ProductCatalog.js"></script>
+    <script type="text/babel" src="components/CategoryManager.js"></script>
+    <script type="text/babel" src="components/ErrorBoundary.js"></script>
+    <script type="text/babel" src="components/App.js"></script>
 
-            return (
-                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-                    <div className="bg-white rounded-lg p-8 w-96 shadow-xl">
-                        <h2 className="text-2xl font-bold mb-6 text-gray-800 flex items-center gap-2"><LogIn size={24} className="text-blue-600"/> Acesso Restrito</h2>
-                        <form onSubmit={handleSubmit} className="space-y-4">
-                            <div><label className="block text-sm font-medium text-gray-700">Email</label><input type="email" required className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 p-2 border" value={email} onChange={(e) => setEmail(e.target.value)} /></div>
-                            <div><label className="block text-sm font-medium text-gray-700">Senha</label><input type="password" required className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 p-2 border" value={password} onChange={(e) => setPassword(e.target.value)} /></div>
-                            {error && <p className="text-red-500 text-sm">{error}</p>}
-                            <div className="flex justify-end gap-2 mt-6"><button type="button" onClick={onClose} className="px-4 py-2 text-gray-600 hover:text-gray-800">Cancelar</button><button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">Entrar</button></div>
-                        </form>
-                    </div>
-                </div>
-            );
+    <script type="text/babel">
+        const renderApp = () => {
+            if (!window.ReactDOM || !window.ReactDOM.createRoot) {
+                // ReactDOM not yet ready, wait for deps-ready event
+                window.addEventListener('deps-ready', renderApp, { once: true });
+                return;
+            }
+            const root = window.ReactDOM.createRoot(document.getElementById('root'));
+            root.render(<App />);
         };
 
-        const CreateCountModal = ({ isOpen, onClose, onCreate }) => {
-            const [date, setDate] = useState('');
-            const [time, setTime] = useState('');
-            const [responsible, setResponsible] = useState('');
-
-            useEffect(() => {
-                if(isOpen) {
-                    const now = new Date();
-                    setDate(`${String(now.getDate()).padStart(2,'0')}/${String(now.getMonth()+1).padStart(2,'0')}`);
-                    setTime(`${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`);
-                    setResponsible('');
-                }
-            }, [isOpen]);
-
-            if (!isOpen) return null;
-
-            const handleSubmit = (e) => {
-                e.preventDefault();
-                onCreate(date, time, responsible);
-                onClose();
-            };
-
-            return (
-                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-                    <div className="bg-white rounded-lg p-8 w-[400px] shadow-xl">
-                        <h2 className="text-xl font-bold mb-6 text-gray-800 flex items-center gap-2"><Plus size={24} className="text-blue-600"/> Nova Contagem</h2>
-                        <form onSubmit={handleSubmit} className="space-y-4">
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700">Data (DD/MM)</label>
-                                <input type="text" placeholder="Ex: 05/03" required pattern="\d{2}/\d{2}" className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 p-2 border" value={date} onChange={(e) => setDate(e.target.value)} />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700">Horário</label>
-                                <input type="time" required className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 p-2 border" value={time} onChange={(e) => setTime(e.target.value)} />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700">Responsável pela contagem</label>
-                                <input type="text" required placeholder="Nome de quem vai contar" className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 p-2 border" value={responsible} onChange={(e) => setResponsible(e.target.value)} />
-                            </div>
-                            <div className="flex justify-end gap-2 mt-6">
-                                <button type="button" onClick={onClose} className="px-4 py-2 text-gray-600 hover:text-gray-800 font-medium">Cancelar</button>
-                                <button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded font-medium hover:bg-blue-700">Criar Ficha</button>
-                            </div>
-                        </form>
-                    </div>
-                </div>
-            );
-        };
-
-        const LocationButton = ({ name, onClick, isSelected }) => (
-            <button onClick={onClick} className={`flex items-center gap-2 px-4 py-3 rounded-lg font-medium transition-all print:hidden ${isSelected ? 'bg-blue-600 text-white shadow-md ring-2 ring-blue-600 ring-offset-2' : 'bg-white text-slate-600 hover:bg-slate-50 border border-slate-200'}`}>
-                <Building2 size={18} /> {name}
-            </button>
-        );
-
-        const DateButton = ({ date, onClick, isSelected, disabled }) => (
-            <button onClick={() => !disabled && onClick(date)} disabled={disabled} className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-all print:hidden ${isSelected ? 'bg-blue-100 text-blue-700 border border-blue-200' : disabled ? 'opacity-40 cursor-not-allowed text-slate-400' : 'text-slate-500 hover:bg-slate-100'}`}>
-                <Calendar size={14} /> {date}
-            </button>
-        );
-
-        const AnalyzedProductsModal = ({ isOpen, onClose, products }) => {
-            const [sortConfig, setSortConfig] = useState({ key: 'divergencia', direction: 'desc' });
-
-            if (!isOpen) return null;
-
-            const handleSort = (key) => {
-                let direction = 'asc';
-                if (sortConfig.key === key && sortConfig.direction === 'asc') direction = 'desc';
-                setSortConfig({ key, direction });
-            };
-
-            const sortedProducts = [...products].sort((a, b) => {
-                let aVal = a[sortConfig.key];
-                let bVal = b[sortConfig.key];
-                if (typeof aVal === 'string') aVal = aVal.toLowerCase();
-                if (typeof bVal === 'string') bVal = bVal.toLowerCase();
-                if (aVal < bVal) return sortConfig.direction === 'asc' ? -1 : 1;
-                if (aVal > bVal) return sortConfig.direction === 'asc' ? 1 : -1;
-                return 0;
-            });
-
-            const getSortIcon = (key) => {
-                if (sortConfig.key !== key) return null;
-                return sortConfig.direction === 'asc' ? ' ↑' : ' ↓';
-            };
-
-            return (
-                <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-                    <div className="bg-white rounded-xl shadow-2xl w-full max-w-4xl flex flex-col max-h-[90vh] overflow-hidden">
-                        <div className="flex justify-between items-center p-5 border-b border-slate-200 bg-slate-50">
-                            <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
-                                <List size={20} className="text-blue-600" /> Produtos Analisados ({products.length})
-                            </h2>
-                            <button onClick={onClose} className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-200 rounded-lg transition-colors">
-                                <X size={20} />
-                            </button>
-                        </div>
-                        <div className="overflow-auto flex-1 scrollbar-thin bg-white relative">
-                            <table className="w-full text-sm text-left">
-                                <thead className="bg-slate-100 text-slate-600 font-semibold sticky top-0 shadow-sm z-10">
-                                    <tr>
-                                        <th onClick={() => handleSort('nome')} className="px-5 py-3 cursor-pointer hover:bg-slate-200 select-none">Produto{getSortIcon('nome')}</th>
-                                        <th onClick={() => handleSort('categoria')} className="px-5 py-3 cursor-pointer hover:bg-slate-200 select-none">Categoria{getSortIcon('categoria')}</th>
-                                        <th onClick={() => handleSort('teorico')} className="px-5 py-3 text-center cursor-pointer hover:bg-slate-200 select-none">Teórico{getSortIcon('teorico')}</th>
-                                        <th onClick={() => handleSort('contado')} className="px-5 py-3 text-center cursor-pointer hover:bg-slate-200 select-none">Contado{getSortIcon('contado')}</th>
-                                        <th onClick={() => handleSort('divergencia')} className="px-5 py-3 text-center cursor-pointer hover:bg-slate-200 select-none">Divergência{getSortIcon('divergencia')}</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-slate-100">
-                                    {sortedProducts.map((item, i) => {
-                                        const absDiv = Math.abs(item.divergencia);
-                                        let divClass = "text-green-600 bg-green-50/50 font-medium";
-                                        let bgClass = "hover:bg-slate-50";
-                                        if (absDiv > 5) {
-                                            divClass = "text-red-700 bg-red-100 font-bold";
-                                            bgClass = "bg-red-50/30 hover:bg-red-50";
-                                        } else if (absDiv > 0) {
-                                            divClass = "text-amber-700 bg-amber-100 font-bold";
-                                            bgClass = "bg-amber-50/30 hover:bg-amber-50";
-                                        }
-
-                                        return (
-                                            <tr key={i} className={`transition-colors ${bgClass}`}>
-                                                <td className="px-5 py-3 font-medium text-slate-700">{item.nome}</td>
-                                                <td className="px-5 py-3 text-slate-500">{item.categoria}</td>
-                                                <td className="px-5 py-3 text-center text-slate-600">{item.teorico}</td>
-                                                <td className="px-5 py-3 text-center text-slate-600">{item.contado}</td>
-                                                <td className="px-5 py-3 text-center">
-                                                    <span className={`px-2.5 py-1 rounded-md inline-block min-w-[3rem] ${divClass}`}>
-                                                        {item.divergencia > 0 ? `+${item.divergencia}` : item.divergencia}
-                                                    </span>
-                                                </td>
-                                            </tr>
-                                        );
-                                    })}
-                                </tbody>
-                            </table>
-                            {products.length === 0 && (
-                                <div className="text-center py-12 text-slate-500">Nenhum produto foi contabilizado nesta data.</div>
-                            )}
-                        </div>
-                    </div>
-                </div>
-            );
-        };
-
-        const EvolutionReport = ({ data, flowData, previousData, dataSets, stockFlow, selectedLocation, getPreviousStockValues }) => {
-            const [isListModalOpen, setIsListModalOpen] = useState(false);
-            const [activeMetrics, setActiveMetrics] = useState(() => {
-                const saved = localStorage.getItem('estoque_activeMetrics');
-                return saved ? JSON.parse(saved) : {
-                    'Unidades Divergentes': true,
-                    'Prod. Div. Leve (<=5)': true,
-                    'Prod. Div. Alta (>5)': true,
-                    'Itens Divergentes': false,
-                    'Total de Produtos': false,
-                    'Produtos Corretos': false,
-                    'Acurácia (%)': false
-                };
-            });
-
-            useEffect(() => {
-                localStorage.setItem('estoque_activeMetrics', JSON.stringify(activeMetrics));
-            }, [activeMetrics]);
-
-            const toggleMetric = (metric) => {
-                setActiveMetrics(prev => ({...prev, [metric]: !prev[metric]}));
-            };
-
-            const metricColors = {
-                'Unidades Divergentes': '#f97316',
-                'Prod. Div. Leve (<=5)': '#fbbf24',
-                'Prod. Div. Alta (>5)': '#b91c1c',
-                'Itens Divergentes': '#ef4444',
-                'Total de Produtos': '#3b82f6',
-                'Produtos Corretos': '#22c55e',
-                'Acurácia (%)': '#8b5cf6'
-            };
-
-            if (!data) return null;
-
-            const categories = [
-                { key: 'aguas', label: 'Águas' }, { key: 'cervejas', label: 'Cervejas' }, 
-                { key: 'zero_energeticos', label: 'Zero & Energ.' }, { key: 'refrigerantes', label: 'Refrigerantes' }, 
-                { key: 'sucos', label: 'Sucos' }, { key: 'sobremesas', label: 'Sobremesas' }, 
-                { key: 'destilados', label: 'Destilados' }, { key: 'picoles', label: 'Picolés' }, 
-                { key: 'jarras_tacas', label: 'Jarras e Taças' }
-            ];
-
-            let totalItems = 0;
-            let divergentItems = 0;
-            let totalUnitsDiverging = 0;
-            let lightDivergenceItems = 0;
-            let highDivergenceItems = 0;
-            let categoryStats = [];
-            let currentAnalyzedProducts = [];
-
-            categories.forEach(cat => {
-                const itemList = data[cat.key];
-                if (!itemList) return;
-                
-                let catDivergent = 0;
-                let catTotal = 0;
-
-                itemList.forEach(item => {
-                    const isGrid = ['aguas', 'cervejas', 'zero_energeticos', 'refrigerantes', 'sucos'].includes(cat.key);
-                    const countedTotal = isGrid ? (parseInt(item.l1 || 0) + parseInt(item.l2 || 0) + parseInt(item.l3 || 0) + parseInt(item.l4 || 0)) : parseInt(item.qtd || 0);
-                    
-                    const flow = flowData?.[cat.key]?.[item.nome] || { entry: 0, exit: 0 };
-                    const prevStock = previousData?.[item.nome] || 0;
-                    
-                    const expected = (prevStock + parseInt(flow.entry || 0)) - parseInt(flow.exit || 0);
-                    const divergence = countedTotal - expected;
-                    
-                    if (expected === 0 && countedTotal === 0) return;
-                    
-                    catTotal++;
-                    
-                    currentAnalyzedProducts.push({
-                        nome: item.nome,
-                        categoria: cat.label,
-                        teorico: expected,
-                        contado: countedTotal,
-                        divergencia: divergence
-                    });
-
-                    if (divergence !== 0) {
-                        catDivergent++;
-                        const absDiv = Math.abs(divergence);
-                        totalUnitsDiverging += absDiv;
-                        if (absDiv <= 5) lightDivergenceItems++;
-                        else highDivergenceItems++;
-                    }
-                });
-
-                totalItems += catTotal;
-                divergentItems += catDivergent;
-                
-                if (catTotal > 0) {
-                    categoryStats.push({
-                        name: cat.label,
-                        Divergentes: catDivergent,
-                        Corretos: catTotal - catDivergent
-                    });
-                }
-            });
-
-            const correctItems = totalItems - divergentItems;
-            const accuracy = totalItems > 0 ? ((correctItems / totalItems) * 100).toFixed(1) : 0;
-
-            const pieData = [
-                { name: 'Corretos', value: correctItems },
-                { name: 'Com Divergência', value: divergentItems }
-            ];
-            const COLORS = ['#22c55e', '#ef4444'];
-
-            let historicalData = [];
-            if (dataSets && stockFlow && selectedLocation && getPreviousStockValues) {
-                const locMap = { 'Matriz': 'matriz', 'Mucambo': 'mucambo', 'Tianguá': 'tiangua' };
-                const locKey = locMap[selectedLocation];
-                
-                const locationKeys = Object.keys(dataSets).filter(k => k.startsWith(`${locKey}_`));
-                const allDates = locationKeys.map(k => {
-                    const parts = k.split('_');
-                    return `${parts[1]}/${parts[2]}`; // Reconstruct DD/MM
-                });
-                
-                // Remove duplicates in case something is weird
-                const uniqueDates = [...new Set(allDates)];
-
-                uniqueDates.sort((a, b) => {
-                    const [d1, m1] = a.split('/').map(Number);
-                    const [d2, m2] = b.split('/').map(Number);
-                    return new Date(2026, m1-1, d1) - new Date(2026, m2-1, d2);
-                });
-
-                historicalData = uniqueDates.map(dateStr => {
-                    const dateStrKey = dateStr.replace('/', '_');
-                    const key = `${locKey}_${dateStrKey}`;
-                    const dateData = dataSets[key] || {};
-                    const dateFlow = stockFlow[key] || {};
-                    const prevStockMap = getPreviousStockValues(selectedLocation, dateStr, dataSets) || {};
-                    
-                    let dateDivUnits = 0;
-                    let dateTotalItems = 0;
-                    let dateDivergentItems = 0;
-                    let dateLightDivergent = 0;
-                    let dateHighDivergent = 0;
-                    
-                    categories.forEach(cat => {
-                        const itemList = dateData[cat.key];
-                        if (!itemList) return;
-                        itemList.forEach(item => {
-                            const isGrid = ['aguas', 'cervejas', 'zero_energeticos', 'refrigerantes', 'sucos'].includes(cat.key);
-                            const countedTotal = isGrid ? (parseInt(item.l1 || 0) + parseInt(item.l2 || 0) + parseInt(item.l3 || 0) + parseInt(item.l4 || 0)) : parseInt(item.qtd || 0);
-                            
-                            const flow = dateFlow?.[cat.key]?.[item.nome] || { entry: 0, exit: 0 };
-                            const prevStockVal = prevStockMap?.[item.nome] || 0;
-                            
-                            const expected = (prevStockVal + parseInt(flow.entry || 0)) - parseInt(flow.exit || 0);
-                            const divergence = countedTotal - expected;
-                            
-                            if (expected === 0 && countedTotal === 0) return;
-                            
-                            dateTotalItems++;
-                            if (divergence !== 0) {
-                                dateDivergentItems++;
-                                const absDiv = Math.abs(divergence);
-                                dateDivUnits += absDiv;
-                                if (absDiv <= 5) dateLightDivergent++;
-                                else dateHighDivergent++;
-                            }
-                        });
-                    });
-
-                    const dateCorrectItems = dateTotalItems - dateDivergentItems;
-                    const dateAccuracy = dateTotalItems > 0 ? parseFloat(((dateCorrectItems / dateTotalItems) * 100).toFixed(1)) : 0;
-
-                    return {
-                        name: dateStr,
-                        'Unidades Divergentes': dateDivUnits,
-                        'Prod. Div. Leve (<=5)': dateLightDivergent,
-                        'Prod. Div. Alta (>5)': dateHighDivergent,
-                        'Itens Divergentes': dateDivergentItems,
-                        'Total de Produtos': dateTotalItems,
-                        'Produtos Corretos': dateCorrectItems,
-                        'Acurácia (%)': dateAccuracy
-                    };
-                });
-            }
-
-            if (!TrendingUp) return <div className="p-4 text-red-500 bg-red-50">Erro: Ícone TrendingUp não carregou.</div>;
-            if (!PieChart || !BarChart || !LineChart) return <div className="p-4 text-red-500 bg-red-50">Erro: Biblioteca Recharts não carregou corretamente.</div>;
-
-            return (
-                <div className="mb-8 bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden print:hidden">
-                    <AnalyzedProductsModal isOpen={isListModalOpen} onClose={() => setIsListModalOpen(false)} products={currentAnalyzedProducts} />
-                    <div className="bg-slate-50 px-6 py-4 border-b border-slate-200 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                        <h3 className="text-lg font-semibold text-slate-800 flex items-center gap-2">
-                            <TrendingUp className="text-blue-600" size={20} />
-                            Relatório de Evolução e Precisão
-                        </h3>
-                        <button onClick={() => setIsListModalOpen(true)} className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-300 text-slate-700 rounded-lg text-sm font-medium hover:bg-slate-50 transition-colors shadow-sm">
-                            <List size={16} className="text-blue-600" /> Ver Listagem Analisada
-                        </button>
-                    </div>
-                    <div className="p-6">
-                        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-8">
-                            <div className="bg-blue-50 rounded-lg p-4 border border-blue-100 flex flex-col justify-center items-center text-center">
-                                <span className="text-xs font-medium text-blue-600 mb-1">Total Produtos</span>
-                                <span className="text-2xl font-bold text-blue-900">{totalItems}</span>
-                            </div>
-                            <div className="bg-green-50 rounded-lg p-4 border border-green-100 flex flex-col justify-center items-center text-center">
-                                <span className="text-xs font-medium text-green-600 mb-1">Acurácia</span>
-                                <span className="text-2xl font-bold text-green-700">{accuracy}%</span>
-                            </div>
-                            <div className="bg-red-50 rounded-lg p-4 border border-red-100 flex flex-col justify-center items-center text-center">
-                                <span className="text-xs font-medium text-red-600 mb-1">Prod. Divergentes</span>
-                                <span className="text-2xl font-bold text-red-700">{divergentItems}</span>
-                            </div>
-                            <div className="bg-orange-50 rounded-lg p-4 border border-orange-100 flex flex-col justify-center items-center text-center">
-                                <span className="text-xs font-medium text-orange-600 mb-1">Unid. Divergentes</span>
-                                <span className="text-2xl font-bold text-orange-700">{totalUnitsDiverging}</span>
-                            </div>
-                            <div className="bg-amber-50 rounded-lg p-4 border border-amber-100 flex flex-col justify-center items-center text-center">
-                                <span className="text-xs font-medium text-amber-600 mb-1">Prod. Div. Leve (≤5)</span>
-                                <span className="text-2xl font-bold text-amber-700">{lightDivergenceItems}</span>
-                            </div>
-                            <div className="bg-red-100 rounded-lg p-4 border border-red-200 flex flex-col justify-center items-center text-center">
-                                <span className="text-xs font-medium text-red-800 mb-1">Prod. Div. Alta (>5)</span>
-                                <span className="text-2xl font-bold text-red-900">{highDivergenceItems}</span>
-                            </div>
-                        </div>
-
-                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                            <div className="h-80 bg-white border border-slate-100 rounded-lg p-4 flex flex-col shadow-sm">
-                                <h4 className="text-sm font-semibold text-slate-600 mb-4 text-center">Proporção Geral</h4>
-                                <div className="flex-1">
-                                    <ResponsiveContainer width="100%" height="100%">
-                                        <PieChart>
-                                            <Pie data={pieData} cx="50%" cy="50%" innerRadius={60} outerRadius={90} fill="#8884d8" paddingAngle={5} dataKey="value" label={({name, percent}) => `${name} ${(percent * 100).toFixed(0)}%`}>
-                                                {pieData.map((entry, index) => (
-                                                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                                                ))}
-                                            </Pie>
-                                            <Tooltip formatter={(value) => [`${value} itens`, 'Quantidade']} />
-                                            <Legend verticalAlign="bottom" height={36}/>
-                                        </PieChart>
-                                    </ResponsiveContainer>
-                                </div>
-                            </div>
-                            <div className="h-80 bg-white border border-slate-100 rounded-lg p-4 flex flex-col shadow-sm">
-                                <h4 className="text-sm font-semibold text-slate-600 mb-4 text-center">Divergências por Categoria</h4>
-                                <div className="flex-1">
-                                    <ResponsiveContainer width="100%" height="100%">
-                                        <BarChart data={categoryStats} margin={{ top: 20, right: 30, left: -20, bottom: 25 }}>
-                                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-                                            <XAxis dataKey="name" tick={{fontSize: 11, fill: '#64748b'}} interval={0} angle={-45} textAnchor="end" />
-                                            <YAxis allowDecimals={false} tick={{fontSize: 11, fill: '#64748b'}} />
-                                            <Tooltip contentStyle={{borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'}} />
-                                            <Bar dataKey="Divergentes" stackId="a" fill="#ef4444" radius={[0, 0, 0, 0]}>
-                                                <LabelList dataKey="Divergentes" position="center" fill="#ffffff" fontSize={11} fontWeight="bold" formatter={(val) => val > 0 ? val : ''} />
-                                            </Bar>
-                                            <Bar dataKey="Corretos" stackId="a" fill="#22c55e" radius={[4, 4, 0, 0]}>
-                                                <LabelList dataKey="Corretos" position="center" fill="#ffffff" fontSize={11} fontWeight="bold" formatter={(val) => val > 0 ? val : ''} />
-                                            </Bar>
-                                        </BarChart>
-                                    </ResponsiveContainer>
-                                </div>
-                            </div>
-                        </div>
-
-                        {historicalData.length > 0 && (
-                            <div className="mt-8 bg-white border border-slate-100 rounded-lg p-6 flex flex-col shadow-sm">
-                                <h4 className="text-sm font-semibold text-slate-800 mb-2 text-center">Evolução Histórica de Métricas</h4>
-                                
-                                <div className="flex flex-wrap gap-x-6 gap-y-2 mb-6 justify-center bg-slate-50 p-3 rounded-lg border border-slate-100">
-                                    {Object.keys(activeMetrics).map(metric => (
-                                        <label key={metric} className="flex items-center gap-2 cursor-pointer text-sm font-medium text-slate-700 hover:text-slate-900 transition-colors">
-                                            <input 
-                                                type="checkbox" 
-                                                checked={activeMetrics[metric]} 
-                                                onChange={() => toggleMetric(metric)} 
-                                                className="w-4 h-4 rounded cursor-pointer border-slate-300 focus:ring-0" 
-                                                style={{accentColor: metricColors[metric]}} 
-                                            />
-                                            {metric}
-                                        </label>
-                                    ))}
-                                </div>
-
-                                <div className="h-80 w-full">
-                                    <ResponsiveContainer width="100%" height="100%">
-                                        <LineChart data={historicalData} margin={{ top: 20, right: 30, left: -20, bottom: 25 }}>
-                                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-                                            <XAxis dataKey="name" tick={{fontSize: 11, fill: '#64748b'}} />
-                                            <YAxis yAxisId="left" allowDecimals={false} tick={{fontSize: 11, fill: '#64748b'}} />
-                                            {activeMetrics['Acurácia (%)'] && (
-                                                <YAxis yAxisId="right" orientation="right" domain={['auto', 'auto']} tick={{fontSize: 11, fill: '#64748b'}} tickFormatter={(val) => `${val}%`} />
-                                            )}
-                                            <Tooltip contentStyle={{borderRadius: '8px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'}} />
-                                            <Legend verticalAlign="bottom" height={36}/>
-                                            {Object.keys(activeMetrics).map(metric => activeMetrics[metric] && (
-                                                <Line key={metric} yAxisId={metric === 'Acurácia (%)' ? 'right' : 'left'} type="monotone" dataKey={metric} name={metric} stroke={metricColors[metric]} strokeWidth={3} dot={{r: 4, strokeWidth: 2}} activeDot={{r: 6}}>
-                                                    <LabelList dataKey={metric} position="top" fill={metricColors[metric]} fontSize={11} fontWeight="bold" offset={10} formatter={(val) => val > 0 ? (metric === 'Acurácia (%)' ? `${val}%` : val) : ''} />
-                                                </Line>
-                                            ))}
-                                        </LineChart>
-                                    </ResponsiveContainer>
-                                </div>
-                            </div>
-                        )}
-                    </div>
-                </div>
-            );
-        };
-
-        class ErrorBoundary extends React.Component {
-            constructor(props) {
-                super(props);
-                this.state = { hasError: false, error: null, errorInfo: null };
-            }
-            static getDerivedStateFromError(error) {
-                return { hasError: true, error };
-            }
-            componentDidCatch(error, errorInfo) {
-                this.setState({ errorInfo });
-                console.error("ErrorBoundary caught an error:", error, errorInfo);
-            }
-            render() {
-                if (this.state.hasError) {
-                    return (
-                        <div className="p-8 m-8 bg-red-100 text-red-900 border-2 border-red-500 rounded-lg shadow-xl">
-                            <h2 className="text-2xl font-bold mb-4">🚨 Ocorreu um erro na aplicação!</h2>
-                            <p className="font-semibold">{this.state.error && this.state.error.toString()}</p>
-                            <pre className="mt-4 p-4 bg-white text-sm overflow-auto max-h-64 rounded">
-                                {this.state.errorInfo && this.state.errorInfo.componentStack}
-                            </pre>
-                        </div>
-                    );
-                }
-                return this.props.children; 
-            }
+        // Fire when both Firebase and deps are ready
+        if (window.auth && window.ReactDOM && window.ReactDOM.createRoot) {
+            renderApp();
+        } else if (window.auth) {
+            window.addEventListener('deps-ready', renderApp, { once: true });
+        } else {
+            window.addEventListener('firebase-ready', () => {
+                if (window.ReactDOM && window.ReactDOM.createRoot) renderApp();
+                else window.addEventListener('deps-ready', renderApp, { once: true });
+            }, { once: true });
         }
-
-        // --- MAIN APP ---
-        const App = () => {
-            const fileInputRef = useRef(null);
-            const countingFileInputRef = useRef(null); 
-            
-            const [selectedLocation, setSelectedLocation] = useState(() => localStorage.getItem('estoque_location') || 'Tianguá');
-            const [selectedDate, setSelectedDate] = useState(() => localStorage.getItem('estoque_date') || '02/02');
-            const [viewMode, setViewMode] = useState(() => localStorage.getItem('estoque_viewMode') || 'counting'); 
-            
-            const [user, setUser] = useState(null);
-            const [isLoginOpen, setIsLoginOpen] = useState(false);
-            const [isLoading, setIsLoading] = useState(false);
-            
-            const [stockFlow, setStockFlow] = useState({});
-            const [dataSets, setDataSets] = useState({}); 
-
-            const [isEditing, setIsEditing] = useState(false);
-            const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
-
-            useEffect(() => { setIsEditing(false); }, [selectedDate, selectedLocation]);
-
-            useEffect(() => { localStorage.setItem('estoque_location', selectedLocation); }, [selectedLocation]);
-            useEffect(() => { localStorage.setItem('estoque_date', selectedDate); }, [selectedDate]);
-            useEffect(() => { localStorage.setItem('estoque_viewMode', viewMode); }, [viewMode]);
-
-            useEffect(() => {
-                const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-                    setUser(currentUser);
-                    if (currentUser) handleLoadFromCloud();
-                });
-                return () => unsubscribe();
-            }, []);
-
-            const handleLogin = async (email, password) => { await signInWithEmailAndPassword(auth, email, password); };
-            const handleLogout = async () => { await signOut(auth); setDataSets({}); setStockFlow({}); alert("Desconectado com sucesso."); };
-
-            const handleLoadFromCloud = async () => {
-                setIsLoading(true);
-                try {
-                    const docRef = doc(db, "estoque", "geral");
-                    const docSnap = await getDoc(docRef);
-                    if (docSnap.exists()) {
-                        const data = docSnap.data();
-                        if (data.dataSets) setDataSets(data.dataSets);
-                        if (data.stockFlow) setStockFlow(data.stockFlow);
-                        console.log("Dados carregados da nuvem.");
-                    } else {
-                        await setDoc(docRef, { dataSets: {}, stockFlow: {} });
-                        console.log("Nenhum dado encontrado na nuvem. Criado documento inicial.");
-                    }
-                } catch (error) { console.error("Error getting document: ", error); } finally { setIsLoading(false); }
-            };
-
-            const getPreviousStockValues = (location, currentDate, allDataSets) => {
-                const allDates = getDatesForLocation(location, allDataSets);
-                // Ensure current date is in the list for indexing, in case it's new
-                if (!allDates.includes(currentDate)) allDates.push(currentDate);
-                allDates.sort((a, b) => {
-                    const [d1, m1] = a.split('/').map(Number);
-                    const [d2, m2] = b.split('/').map(Number);
-                    return new Date(2026, m1-1, d1) - new Date(2026, m2-1, d2);
-                });
-
-                const currentIndex = allDates.indexOf(currentDate);
-                if (currentIndex <= 0) return {}; 
-                const prevDate = allDates[currentIndex - 1];
-                const prevKey = getDatasetKey(location, prevDate);
-                const prevData = allDataSets[prevKey];
-                if (!prevData) return {}; 
-                const stockMap = {};
-                const categories = ['aguas', 'cervejas', 'zero_energeticos', 'refrigerantes', 'sucos', 'sobremesas', 'destilados', 'picoles', 'jarras_tacas'];
-                categories.forEach(cat => {
-                    if (prevData[cat]) {
-                        prevData[cat].forEach(item => {
-                            const total = (item.l1 || 0) + (item.l2 || 0) + (item.l3 || 0) + (item.l4 || 0) + (item.qtd || 0);
-                            stockMap[item.nome] = total;
-                        });
-                    }
-                });
-                return stockMap;
-            };
-
-            const getPreviousDateLabel = (current, location, allDataSets) => {
-                const allDates = getDatesForLocation(location, allDataSets);
-                // If current date isn't in list yet, effectively temp add it to find prev
-                let tempDates = [...allDates];
-                if (!tempDates.includes(current)) {
-                    tempDates.push(current);
-                    tempDates.sort((a, b) => {
-                        const [d1, m1] = a.split('/').map(Number);
-                        const [d2, m2] = b.split('/').map(Number);
-                        return new Date(2026, m1-1, d1) - new Date(2026, m2-1, d2);
-                    });
-                }
-                const idx = tempDates.indexOf(current);
-                if (idx > 0) return tempDates[idx - 1];
-                return null;
-            };
-
-            const currentKey = getDatasetKey(selectedLocation, selectedDate);
-            const currentData = dataSets[currentKey] || generateCompleteDataSet(MASTER_LIST, {}, "", selectedLocation);
-            const currentFlowData = stockFlow[currentKey] || {};
-            const previousStockData = getPreviousStockValues(selectedLocation, selectedDate, dataSets);
-            const previousDateLabel = getPreviousDateLabel(selectedDate, selectedLocation, dataSets);
-
-            // Calculate available dates for the buttons
-            const availableDates = getDatesForLocation(selectedLocation, dataSets);
-            // Always include the selected date even if it's new/empty
-            if (!availableDates.includes(selectedDate)) availableDates.push(selectedDate);
-            // Re-sort for display
-            availableDates.sort((a, b) => {
-                const [d1, m1] = a.split('/').map(Number);
-                const [d2, m2] = b.split('/').map(Number);
-                return new Date(2026, m1-1, d1) - new Date(2026, m2-1, d2);
-            });
-
-            const handleLocationChange = (newLoc) => {
-                setSelectedLocation(newLoc);
-                const locDates = getDatesForLocation(newLoc, dataSets);
-                if (locDates.length > 0) {
-                    if (!locDates.includes(selectedDate)) {
-                        setSelectedDate(locDates[locDates.length - 1]);
-                    }
-                }
-            };
-
-            const handleUpdate = (category, index, field, value) => {
-                const val = value === '' ? 0 : parseInt(value);
-                const baseData = dataSets[currentKey] || generateCompleteDataSet(MASTER_LIST, {}, currentData.responsavel, selectedLocation);
-                const updatedCategory = baseData[category].map((item, i) => i === index ? { ...item, [field]: val } : item);
-                const newDataSets = { ...dataSets, [currentKey]: { ...baseData, [category]: updatedCategory } };
-                setDataSets(newDataSets);
-                if (user) {
-                    const updatePayload = {};
-                    updatePayload[`dataSets.${currentKey}`] = newDataSets[currentKey];
-                    updatePayload['lastUpdated'] = new Date().toISOString();
-                    updatePayload['updatedBy'] = user.email;
-                    updateDoc(doc(db, "estoque", "geral"), updatePayload).catch(e => console.error("Falha ao salvar contagem", e));
-                }
-            };
-
-            const handleResponsibleChange = (newVal) => {
-                if (!isEditing) return;
-                const baseData = dataSets[currentKey] || generateCompleteDataSet(MASTER_LIST, {}, "", selectedLocation);
-                const updatedData = { ...baseData, responsavel: newVal };
-                const newDataSets = { ...dataSets, [currentKey]: updatedData };
-                setDataSets(newDataSets);
-                
-                if (user) {
-                    const updatePayload = {};
-                    updatePayload[`dataSets.${currentKey}`] = updatedData;
-                    updateDoc(doc(db, "estoque", "geral"), updatePayload);
-                }
-            };
-
-            const handleTimeChange = (newVal) => {
-                if (!isEditing) return;
-                const baseData = dataSets[currentKey] || generateCompleteDataSet(MASTER_LIST, {}, currentData.responsavel, selectedLocation);
-                const updatedData = { ...baseData, horario: newVal };
-                const newDataSets = { ...dataSets, [currentKey]: updatedData };
-                setDataSets(newDataSets);
-                
-                if (user) {
-                    const updatePayload = {};
-                    updatePayload[`dataSets.${currentKey}`] = updatedData;
-                    updateDoc(doc(db, "estoque", "geral"), updatePayload);
-                }
-            };
-
-            const handleCreateCount = (date, time, responsible) => {
-                const key = getDatasetKey(selectedLocation, date);
-                if (dataSets[key]) {
-                    if (!window.confirm(`Já existe uma ficha para o dia ${date} na unidade ${selectedLocation}. Deseja sobrescrever e zerar os dados da contagem?`)) return;
-                }
-                const newDataset = generateCompleteDataSet(MASTER_LIST, {}, responsible, selectedLocation);
-                newDataset.horario = time;
-                
-                const newDataSets = { ...dataSets, [key]: newDataset };
-                setDataSets(newDataSets);
-                setSelectedDate(date);
-                setIsEditing(true);
-
-                if (user) {
-                    const updatePayload = {};
-                    updatePayload[`dataSets.${key}`] = newDataset;
-                    updatePayload['lastUpdated'] = new Date().toISOString();
-                    updateDoc(doc(db, "estoque", "geral"), updatePayload)
-                        .catch(e => console.error("Falha ao salvar nova contagem", e));
-                }
-            };
-
-            const handleFlowUpdate = (category, productName, type, value) => {
-                const val = value === '' ? 0 : parseInt(value);
-                const newStockFlow = { ...stockFlow, [currentKey]: { ...stockFlow[currentKey], [category]: { ...stockFlow[currentKey]?.[category], [productName]: { ...stockFlow[currentKey]?.[category]?.[productName], [type]: val } } } };
-                setStockFlow(newStockFlow);
-                if (user) {
-                    const updatePayload = {};
-                    updatePayload[`stockFlow.${currentKey}`] = newStockFlow[currentKey];
-                    updatePayload['lastUpdated'] = new Date().toISOString();
-                    updateDoc(doc(db, "estoque", "geral"), updatePayload).catch(e => console.error("Falha ao salvar fluxo", e));
-                }
-            };
-
-            const handleDownloadTemplate = () => {
-                if (!window.XLSX) { alert("Biblioteca XLSX não carregada."); return; }
-                const rows = [["CATEGORIA", "PRODUTO", "ENTRADA", "SAIDA"]];
-                const categories = [
-                    { key: 'aguas', label: 'ÁGUAS' }, { key: 'cervejas', label: 'CERVEJAS' }, { key: 'zero_energeticos', label: 'ZERO & ENERGÉTICOS' },
-                    { key: 'refrigerantes', label: 'REFRIGERANTES' }, { key: 'sucos', label: 'SUCOS' }, { key: 'sobremesas', label: 'SOBREMESAS' },
-                    { key: 'destilados', label: 'DESTILADOS' }, { key: 'picoles', label: 'PICOLÉS' }, { key: 'jarras_tacas', label: 'JARRAS E TAÇAS' }
-                ];
-                categories.forEach(cat => { if(MASTER_LIST[cat.key]) { MASTER_LIST[cat.key].forEach(product => { rows.push([cat.label, product, "", ""]); }); } });
-                const wb = window.XLSX.utils.book_new();
-                const ws = window.XLSX.utils.aoa_to_sheet(rows);
-                ws['!cols'] = [{ wch: 20 }, { wch: 40 }, { wch: 10 }, { wch: 10 }];
-                window.XLSX.utils.book_append_sheet(wb, ws, "Modelo Entrada e Saída");
-                window.XLSX.writeFile(wb, "Modelo_Movimentacao_Estoque.xlsx");
-            };
-
-            const handleFileUpload = (e) => {
-                if (!window.XLSX) return;
-                const file = e.target.files[0];
-                if (!file) return;
-                const reader = new FileReader();
-                reader.onload = (evt) => {
-                    const bstr = evt.target.result;
-                    const wb = window.XLSX.read(bstr, { type: 'binary' });
-                    const wsname = wb.SheetNames[0];
-                    const ws = wb.Sheets[wsname];
-                    const data = window.XLSX.utils.sheet_to_json(ws);
-                    const newFlowData = { ...stockFlow[currentKey] };
-                    data.forEach(row => {
-                        const produto = row["PRODUTO"];
-                        const entrada = row["ENTRADA"] ? parseInt(row["ENTRADA"]) : 0;
-                        const saida = row["SAIDA"] ? parseInt(row["SAIDA"]) : 0;
-                        if (produto) {
-                            let categoryKey = null;
-                            for (const [key, list] of Object.entries(MASTER_LIST)) {
-                                if (list.includes(produto)) { categoryKey = key; break; }
-                            }
-                            if (categoryKey) {
-                                if (!newFlowData[categoryKey]) newFlowData[categoryKey] = {};
-                                if (!newFlowData[categoryKey][produto]) newFlowData[categoryKey][produto] = {};
-                                newFlowData[categoryKey][produto].entry = entrada;
-                                newFlowData[categoryKey][produto].exit = saida;
-                            }
-                        }
-                    });
-                    const updatedStockFlow = { ...stockFlow, [currentKey]: newFlowData };
-                    setStockFlow(updatedStockFlow);
-                    if (user) {
-                        const updatePayload = {};
-                        updatePayload[`stockFlow.${currentKey}`] = newFlowData;
-                        updateDoc(doc(db, "estoque", "geral"), updatePayload)
-                            .then(() => alert("Importação realizada e salva na nuvem com sucesso!"))
-                            .catch(e => { console.error("Erro ao salvar upload", e); alert("Erro ao salvar na nuvem."); });
-                    } else { alert("Importado apenas localmente. Faça login para salvar."); }
-                    if(fileInputRef.current) fileInputRef.current.value = "";
-                };
-                reader.readAsBinaryString(file);
-            };
-
-            const handleDownloadCountingTemplate = () => {
-                if (!window.XLSX) { alert("Biblioteca XLSX não carregada."); return; }
-                const rows = [["CATEGORIA", "PRODUTO", "LOCAL 1", "LOCAL 2", "LOCAL 3", "LOCAL 4"]];
-                const categories = [
-                    { key: 'aguas', label: 'ÁGUAS' }, { key: 'cervejas', label: 'CERVEJAS' }, { key: 'zero_energeticos', label: 'ZERO & ENERGÉTICOS' },
-                    { key: 'refrigerantes', label: 'REFRIGERANTES' }, { key: 'sucos', label: 'SUCOS' }, { key: 'sobremesas', label: 'SOBREMESAS' },
-                    { key: 'destilados', label: 'DESTILADOS' }, { key: 'picoles', label: 'PICOLÉS' }, { key: 'jarras_tacas', label: 'JARRAS E TAÇAS' }
-                ];
-                categories.forEach(cat => { if(MASTER_LIST[cat.key]) { MASTER_LIST[cat.key].forEach(product => { rows.push([cat.label, product, "", "", "", ""]); }); } });
-                const wb = window.XLSX.utils.book_new();
-                const ws = window.XLSX.utils.aoa_to_sheet(rows);
-                ws['!cols'] = [{ wch: 20 }, { wch: 40 }, { wch: 10 }, { wch: 10 }, { wch: 10 }, { wch: 10 }];
-                window.XLSX.utils.book_append_sheet(wb, ws, "Modelo Contagem");
-                window.XLSX.writeFile(wb, "Modelo_Ficha_Contagem.xlsx");
-            };
-
-            const handleCountingFileUpload = (e) => {
-                if (!window.XLSX) return;
-                const file = e.target.files[0];
-                if (!file) return;
-                const reader = new FileReader();
-                reader.onload = (evt) => {
-                    const bstr = evt.target.result;
-                    const wb = window.XLSX.read(bstr, { type: 'binary' });
-                    const wsname = wb.SheetNames[0];
-                    const ws = wb.Sheets[wsname];
-                    const data = window.XLSX.utils.sheet_to_json(ws);
-                    
-                    // Create base structure if needed
-                    const baseData = dataSets[currentKey] || generateCompleteDataSet(MASTER_LIST, {}, currentData.responsavel, selectedLocation);
-                    
-                    // Clone structure to avoid mutation
-                    const newDataSet = JSON.parse(JSON.stringify(baseData));
-
-                    data.forEach(row => {
-                        const produto = row["PRODUTO"];
-                        const l1 = row["LOCAL 1"] ? parseInt(row["LOCAL 1"]) : 0;
-                        const l2 = row["LOCAL 2"] ? parseInt(row["LOCAL 2"]) : 0;
-                        const l3 = row["LOCAL 3"] ? parseInt(row["LOCAL 3"]) : 0;
-                        const l4 = row["LOCAL 4"] ? parseInt(row["LOCAL 4"]) : 0;
-                        
-                        const qtd = l1 + l2 + l3 + l4; 
-
-                        if (produto) {
-                            let categoryKey = null;
-                            for (const [key, list] of Object.entries(MASTER_LIST)) {
-                                if (list.includes(produto)) { categoryKey = key; break; }
-                            }
-
-                            if (categoryKey) {
-                                // Find item in category array
-                                const itemIndex = newDataSet[categoryKey].findIndex(i => i.nome === produto);
-                                if (itemIndex !== -1) {
-                                    newDataSet[categoryKey][itemIndex].l1 = l1;
-                                    newDataSet[categoryKey][itemIndex].l2 = l2;
-                                    newDataSet[categoryKey][itemIndex].l3 = l3;
-                                    newDataSet[categoryKey][itemIndex].l4 = l4;
-                                    newDataSet[categoryKey][itemIndex].qtd = qtd;
-                                }
-                            }
-                        }
-                    });
-
-                    // Update State
-                    const updatedDataSets = { ...dataSets, [currentKey]: newDataSet };
-                    setDataSets(updatedDataSets);
-
-                    // Upload to Firebase
-                    if (user) {
-                        const updatePayload = {};
-                        updatePayload[`dataSets.${currentKey}`] = newDataSet;
-                        updatePayload['lastUpdated'] = new Date().toISOString();
-                        updatePayload['updatedBy'] = user.email;
-                        
-                        updateDoc(doc(db, "estoque", "geral"), updatePayload)
-                            .then(() => alert("Contagem importada e salva na nuvem com sucesso!"))
-                            .catch(e => { console.error("Erro ao salvar contagem", e); alert("Erro ao salvar na nuvem."); });
-                    } else { alert("Importado apenas localmente. Faça login para salvar."); }
-                    
-                    if(countingFileInputRef.current) countingFileInputRef.current.value = "";
-                };
-                reader.readAsBinaryString(file);
-            };
-
-            const exportToExcel = () => {
-                if (!window.XLSX) { alert("Biblioteca XLSX não carregada."); return; }
-                const wb = window.XLSX.utils.book_new();
-                const mainRows = [];
-                mainRows.push([`RELATÓRIO DE ESTOQUE - ${selectedLocation.toUpperCase()}`, "", "", "", "", "", "", ""]);
-                mainRows.push([`Data: ${selectedDate}/26`, "", `Responsável: ${currentData.responsavel || '-'}`, "", "", "", "", ""]);
-                mainRows.push([""]);
-                if (viewMode === 'control') mainRows.push(["CATEGORIA", "PRODUTO", "ANTERIOR", "ENTRADA", "SAÍDA", "TEÓRICO", "CONTADO", "DIVERGÊNCIA"]);
-                else mainRows.push(["CATEGORIA", "PRODUTO", "LOCAL 1", "LOCAL 2", "LOCAL 3", "LOCAL 4", "TOTAL"]);
-                const allCategories = [
-                    { key: 'aguas', label: 'ÁGUAS' }, { key: 'cervejas', label: 'CERVEJAS' }, { key: 'zero_energeticos', label: 'ZERO & ENERGÉTICOS' },
-                    { key: 'refrigerantes', label: 'REFRIGERANTES' }, { key: 'sucos', label: 'SUCOS' }, { key: 'sobremesas', label: 'SOBREMESAS' },
-                    { key: 'destilados', label: 'DESTILADOS' }, { key: 'picoles', label: 'PICOLÉS' }, { key: 'jarras_tacas', label: 'JARRAS E TAÇAS' }
-                ];
-                allCategories.forEach(cat => {
-                    const itemList = currentData[cat.key] && currentData[cat.key].length > 0 ? currentData[cat.key] : MASTER_LIST[cat.key].map(name => ({ nome: name, l1:0, l2:0, l3:0, l4:0, qtd:0 }));
-                    if (!itemList) return;
-                    itemList.forEach(item => {
-                        const isGrid = ['aguas', 'cervejas', 'zero_energeticos', 'refrigerantes', 'sucos'].includes(cat.key);
-                        const countedTotal = isGrid ? (parseInt(item.l1 || 0) + parseInt(item.l2 || 0) + parseInt(item.l3 || 0) + parseInt(item.l4 || 0)) : parseInt(item.qtd || 0);
-                        if (viewMode === 'control') {
-                            const flow = currentFlowData?.[cat.key]?.[item.nome] || { entry: 0, exit: 0 };
-                            const prevStock = previousStockData?.[item.nome] || 0;
-                            const expected = (prevStock + parseInt(flow.entry || 0)) - parseInt(flow.exit || 0);
-                            const divergence = countedTotal - expected;
-                            mainRows.push([cat.label, item.nome, prevStock, flow.entry || 0, flow.exit || 0, expected, countedTotal, divergence]);
-                        } else {
-                            if (isGrid) mainRows.push([cat.label, item.nome, item.l1 || 0, item.l2 || 0, item.l3 || 0, item.l4 || 0, countedTotal]);
-                            else mainRows.push([cat.label, item.nome, "-", "-", "-", "-", countedTotal]);
-                        }
-                    });
-                });
-                const wsMain = window.XLSX.utils.aoa_to_sheet(mainRows);
-                wsMain['!cols'] = [{ wch: 20 }, { wch: 40 }, { wch: 10 }, { wch: 10 }, { wch: 10 }, { wch: 10 }, { wch: 10 }, { wch: 10 }];
-                window.XLSX.utils.book_append_sheet(wb, wsMain, "Relatório Geral");
-                window.XLSX.writeFile(wb, `Estoque_${viewMode}_${selectedLocation}_${selectedDate.replace(/\//g, '-')}.xlsx`);
-            };
-
-            const handlePrint = () => { window.print(); };
-
-        return (
-                <div className="min-h-screen bg-slate-50 font-sans text-slate-800 print:bg-white">
-                    <LoginModal isOpen={isLoginOpen} onClose={() => setIsLoginOpen(false)} onLogin={handleLogin} />
-                    <CreateCountModal isOpen={isCreateModalOpen} onClose={() => setIsCreateModalOpen(false)} onCreate={handleCreateCount} />
-                    
-                    <header className="bg-white border-b border-slate-200 sticky top-0 z-10 shadow-sm print:hidden">
-                        <div className="max-w-7xl mx-auto px-4 py-4">
-                            <div className="flex flex-col xl:flex-row justify-between items-center gap-6">
-                                <div className="flex items-center gap-3">
-                                    <div className="w-10 h-10 rounded-lg overflow-hidden shadow-sm shrink-0 border border-slate-200 bg-white flex items-center justify-center">
-                                        <img src="icon.jpeg" alt="Logo" className="w-full h-full object-cover" />
-                                    </div>
-                                    <div><h1 className="text-xl font-bold text-slate-900">Gestão de Estoque</h1><p className="text-sm text-slate-500">Sistema Multilojas</p></div>
-                                </div>
-                                <div className="flex gap-2 bg-slate-100 p-1 rounded-lg">
-                                    <button onClick={() => setViewMode('counting')} className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all ${viewMode === 'counting' ? 'bg-white shadow-sm text-blue-700' : 'text-slate-500 hover:text-slate-700'}`}><ClipboardList size={16} /> Ficha de Contagem</button>
-                                    <button onClick={() => setViewMode('control')} className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all ${viewMode === 'control' ? 'bg-white shadow-sm text-blue-700' : 'text-slate-500 hover:text-slate-700'}`}><AlertCircle size={16} /> Controle & Divergências</button>
-                                </div>
-                                <div className="flex items-center gap-3">
-                                    <button onClick={handlePrint} className="flex items-center gap-2 px-3 py-2 bg-gray-100 text-gray-700 rounded-lg font-medium hover:bg-gray-200 transition-colors shadow-sm" title="Imprimir Relatório"><Printer size={18} /></button>
-                                    {user ? (
-                                        <div className="flex items-center gap-2">
-                                            <button onClick={handleLogout} className="flex items-center gap-2 px-3 py-2 text-gray-500 hover:bg-gray-100 rounded" title="Sair"><LogOut size={18} /></button>
-                                        </div>
-                                    ) : (
-                                        <button onClick={() => setIsLoginOpen(true)} className="flex items-center gap-2 px-4 py-2 text-blue-600 hover:bg-blue-50 rounded font-medium"><LogIn size={18} /> Login</button>
-                                    )}
-                                    <button onClick={exportToExcel} className="flex items-center gap-2 px-5 py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium transition-colors shadow-sm hover:shadow active:scale-95 text-sm whitespace-nowrap"><Download size={18} /> Baixar {viewMode === 'control' ? 'Relatório' : 'Planilha'}</button>
-                                </div>
-                            </div>
-                        </div>
-                    </header>
-
-                    <main className="max-w-7xl mx-auto px-4 py-8 print:p-0 print:w-full">
-                        <div className="flex flex-col md:flex-row gap-6 mb-8 print:mb-4">
-                            <div className="flex-1 min-w-0 bg-white border border-slate-200 rounded-xl p-5 shadow-sm print:border-none print:shadow-none print:p-0">
-                                <div className="flex flex-col lg:flex-row lg:items-center justify-between mb-4 print:mb-2 gap-4">
-                                    <div className="flex gap-2 p-1 bg-slate-50 rounded-xl print:hidden shrink-0">
-                                        <LocationButton name="Matriz" onClick={() => handleLocationChange('Matriz')} isSelected={selectedLocation === 'Matriz'} />
-                                        <LocationButton name="Mucambo" onClick={() => handleLocationChange('Mucambo')} isSelected={selectedLocation === 'Mucambo'} />
-                                        <LocationButton name="Tianguá" onClick={() => handleLocationChange('Tianguá')} isSelected={selectedLocation === 'Tianguá'} />
-                                    </div>
-                                    <div className="flex items-center gap-2 print:hidden overflow-x-auto flex-1 min-w-0 pb-2 scrollbar-thin">
-                                        {availableDates.map(d => (
-                                            <DateButton key={d} date={d} onClick={(date) => { setSelectedDate(date); setIsEditing(false); }} isSelected={selectedDate === d} />
-                                        ))}
-                                        <button onClick={() => setIsCreateModalOpen(true)} className="flex items-center gap-1 px-3 py-1.5 rounded-md text-sm font-medium bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200 ml-2 transition-colors whitespace-nowrap">
-                                            <Plus size={14} /> Nova Contagem
-                                        </button>
-                                    </div>
-                                </div>
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-slate-50 p-4 rounded-lg border border-slate-100 print:bg-white print:border-none print:p-0 print:block relative">
-                                    
-                                    {!isEditing && (
-                                        <div className="absolute top-4 right-4 print:hidden">
-                                            <button onClick={() => setIsEditing(true)} className="flex items-center gap-2 px-4 py-2 bg-orange-100 text-orange-700 hover:bg-orange-200 rounded-md font-medium text-sm transition-colors border border-orange-200 shadow-sm">
-                                                <AlertCircle size={16} /> Editar Ficha
-                                            </button>
-                                        </div>
-                                    )}
-                                    {isEditing && (
-                                        <div className="absolute top-4 right-4 print:hidden">
-                                            <button onClick={() => setIsEditing(false)} className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white hover:bg-green-700 rounded-md font-medium text-sm transition-colors shadow-sm">
-                                                <Save size={16} /> Concluir Edição
-                                            </button>
-                                        </div>
-                                    )}
-
-                                    {/* Campo de Responsável */}
-                                    <div className="flex flex-col gap-1 w-full max-w-xs">
-                                        <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide print:hidden">Responsável</label>
-                                        {isEditing ? (
-                                            <div className="flex items-center gap-2 bg-white border border-slate-300 rounded-md px-3 py-2 shadow-sm focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-blue-500 print:border-none print:p-0">
-                                                <User size={18} className="text-slate-400 print:hidden" />
-                                                <input 
-                                                    type="text" 
-                                                    value={currentData.responsavel || ''} 
-                                                    onChange={(e) => handleResponsibleChange(e.target.value)}
-                                                    placeholder="Nome do responsável"
-                                                    className="w-full bg-transparent outline-none text-slate-800 placeholder-slate-400 print:font-bold print:text-lg"
-                                                />
-                                            </div>
-                                        ) : (
-                                            <div className="flex items-center gap-2 px-2 py-2">
-                                                <User size={18} className="text-slate-500" />
-                                                <span className="font-medium text-slate-800">{currentData.responsavel || '-'}</span>
-                                            </div>
-                                        )}
-                                    </div>
-
-                                    {/* Data e Horário */}
-                                    <div className="flex flex-col gap-1 w-full max-w-xs print:hidden">
-                                        <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Data e Horário</label>
-                                        {isEditing ? (
-                                            <div className="flex gap-2">
-                                                <div className="flex items-center gap-2 bg-slate-100 border border-slate-200 rounded-md px-3 py-2 shadow-sm opacity-70 w-28">
-                                                    <Calendar size={18} className="text-slate-400" />
-                                                    <span className="w-full bg-transparent outline-none text-slate-600 cursor-not-allowed select-none">{selectedDate}</span>
-                                                </div>
-                                                <div className="flex items-center gap-2 bg-white border border-slate-300 rounded-md px-3 py-2 shadow-sm focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-blue-500 flex-1">
-                                                    <input 
-                                                        type="time" 
-                                                        value={currentData.horario || ''} 
-                                                        onChange={(e) => handleTimeChange(e.target.value)}
-                                                        className="w-full bg-transparent outline-none text-slate-800"
-                                                    />
-                                                </div>
-                                            </div>
-                                        ) : (
-                                            <div className="flex items-center gap-2 px-2 py-2">
-                                                <Calendar size={18} className="text-slate-500" />
-                                                <span className="font-medium text-slate-800">{selectedDate} {currentData.horario ? `às ${currentData.horario}` : ''}</span>
-                                            </div>
-                                        )}
-                                    </div>
-
-                                    {/* Exibição Data Impressão */}
-                                    <div className="hidden print:block mt-2">
-                                        Data: <strong>{selectedDate}/2026 {currentData.horario ? `às ${currentData.horario}` : ''}</strong>
-                                    </div>
-
-                                </div>
-                            </div>
-                        </div>
-
-                        {isLoading ? (
-                            <div className="text-center py-20 bg-white rounded-xl border border-dashed border-slate-300 print:hidden">
-                                <RefreshCw className="animate-spin mx-auto text-blue-500 mb-2" size={32}/>
-                                <p className="text-slate-500">Carregando dados da nuvem...</p>
-                            </div>
-                        ) : !user ? (
-                            <div className="text-center py-20 bg-white rounded-xl border border-dashed border-slate-300 print:hidden">
-                                <LogIn className="mx-auto text-slate-300 mb-3" size={48}/>
-                                <p className="text-slate-500 mb-4">Faça login para acessar os dados do estoque.</p>
-                                <button onClick={() => setIsLoginOpen(true)} className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium">Entrar no Sistema</button>
-                            </div>
-                        ) : (
-                            <div className="space-y-2">
-                                {viewMode === 'counting' ? (
-                                    <>
-                                        <div className="bg-blue-50 p-4 rounded-lg mb-6 border border-blue-100 print:hidden">
-                                            <div className="flex justify-between items-start gap-3 mb-4">
-                                                <div className="flex items-start gap-3"><ClipboardList className="text-blue-600 mt-1 shrink-0" size={20} /><div><h4 className="font-bold text-blue-800">Modo de Contagem</h4><p className="text-sm text-blue-700">Preencha a contagem dos produtos. O sistema usará esses valores no controle de estoque.</p></div></div>
-                                                <div className="flex gap-2">
-                                                    <button onClick={handleDownloadCountingTemplate} className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-blue-200 text-blue-700 rounded-lg text-sm font-medium hover:bg-blue-50 transition-colors"><FileDown size={16} /> Baixar Modelo</button>
-                                                    <label className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors cursor-pointer shadow-sm"><Upload size={16} /> Importar Contagem <input type="file" ref={countingFileInputRef} onChange={handleCountingFileUpload} accept=".xlsx" className="hidden" /></label>
-                                                </div>
-                                            </div>
-                                        </div>
-                                        <Section title="Águas" data={currentData.aguas} category="aguas" onUpdate={handleUpdate} isEditing={isEditing} />
-                                        <Section title="Cervejas" data={currentData.cervejas} category="cervejas" onUpdate={handleUpdate} isEditing={isEditing} />
-                                        <Section title="Cervejas Zero Álcool & Energéticos" data={currentData.zero_energeticos} category="zero_energeticos" onUpdate={handleUpdate} isEditing={isEditing} />
-                                        <Section title="Refrigerantes" data={currentData.refrigerantes} category="refrigerantes" onUpdate={handleUpdate} isEditing={isEditing} />
-                                        <Section title="Sucos Industrializados" data={currentData.sucos} category="sucos" onUpdate={handleUpdate} isEditing={isEditing} />
-                                        <div className="grid md:grid-cols-2 gap-8 mt-12 print:block">
-                                            <Section title="Sobremesas" data={currentData.sobremesas} category="sobremesas" onUpdate={handleUpdate} type="list" isEditing={isEditing} />
-                                            <Section title="Destilados & Vinhos" data={currentData.destilados} category="destilados" onUpdate={handleUpdate} type="list" isEditing={isEditing} />
-                                            <Section title="Picolés" data={currentData.picoles} category="picoles" onUpdate={handleUpdate} type="list" isEditing={isEditing} />
-                                            <Section title="Jarras e Taças" data={currentData.jarras_tacas} category="jarras_tacas" onUpdate={handleUpdate} type="list" isEditing={isEditing} />
-                                        </div>
-                                    </>
-                                ) : (
-                                    <ErrorBoundary>
-                                        <div className="bg-blue-50 p-4 rounded-lg mb-6 border border-blue-100 print:hidden">
-                                            <div className="flex justify-between items-start gap-3 mb-4">
-                                                <div className="flex items-start gap-3"><AlertCircle className="text-blue-600 mt-1 shrink-0" size={20} /><div><h4 className="font-bold text-blue-800">Modo de Auditoria</h4><p className="text-sm text-blue-700">Preencha a Entrada e Saída. O sistema calculará o "Teórico" usando o saldo anterior.</p></div></div>
-                                                <div className="flex gap-2">
-                                                    <button onClick={handleDownloadTemplate} className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-blue-200 text-blue-700 rounded-lg text-sm font-medium hover:bg-blue-50 transition-colors"><FileDown size={16} /> Baixar Modelo</button>
-                                                    <label className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors cursor-pointer shadow-sm"><Upload size={16} /> Importar Movimentação <input type="file" ref={fileInputRef} onChange={handleFileUpload} accept=".xlsx" className="hidden" /></label>
-                                                </div>
-                                            </div>
-                                        </div>
-                                        <EvolutionReport data={currentData} flowData={currentFlowData} previousData={previousStockData} dataSets={dataSets} stockFlow={stockFlow} selectedLocation={selectedLocation} getPreviousStockValues={getPreviousStockValues} />
-                                        <ControlSection title="Águas" data={currentData.aguas} category="aguas" stockFlowData={currentFlowData.aguas} previousStockData={previousStockData} onFlowUpdate={handleFlowUpdate} previousDateLabel={previousDateLabel} isEditing={isEditing} />
-                                        <ControlSection title="Cervejas" data={currentData.cervejas} category="cervejas" stockFlowData={currentFlowData.cervejas} previousStockData={previousStockData} onFlowUpdate={handleFlowUpdate} previousDateLabel={previousDateLabel} isEditing={isEditing} />
-                                        <ControlSection title="Zero & Energéticos" data={currentData.zero_energeticos} category="zero_energeticos" stockFlowData={currentFlowData.zero_energeticos} previousStockData={previousStockData} onFlowUpdate={handleFlowUpdate} previousDateLabel={previousDateLabel} isEditing={isEditing} />
-                                        <ControlSection title="Refrigerantes" data={currentData.refrigerantes} category="refrigerantes" stockFlowData={currentFlowData.refrigerantes} previousStockData={previousStockData} onFlowUpdate={handleFlowUpdate} previousDateLabel={previousDateLabel} isEditing={isEditing} />
-                                        <ControlSection title="Sucos" data={currentData.sucos} category="sucos" stockFlowData={currentFlowData.sucos} previousStockData={previousStockData} onFlowUpdate={handleFlowUpdate} previousDateLabel={previousDateLabel} isEditing={isEditing} />
-                                        <ControlSection title="Sobremesas" data={currentData.sobremesas} category="sobremesas" stockFlowData={currentFlowData.sobremesas} previousStockData={previousStockData} onFlowUpdate={handleFlowUpdate} previousDateLabel={previousDateLabel} type="list" isEditing={isEditing} />
-                                        <ControlSection title="Destilados" data={currentData.destilados} category="destilados" stockFlowData={currentFlowData.destilados} previousStockData={previousStockData} onFlowUpdate={handleFlowUpdate} previousDateLabel={previousDateLabel} type="list" isEditing={isEditing} />
-                                        <ControlSection title="Picolés" data={currentData.picoles} category="picoles" stockFlowData={currentFlowData.picoles} previousStockData={previousStockData} onFlowUpdate={handleFlowUpdate} previousDateLabel={previousDateLabel} type="list" isEditing={isEditing} />
-                                        <ControlSection title="Jarras e Taças" data={currentData.jarras_tacas} category="jarras_tacas" stockFlowData={currentFlowData.jarras_tacas} previousStockData={previousStockData} onFlowUpdate={handleFlowUpdate} previousDateLabel={previousDateLabel} type="list" isEditing={isEditing} />
-                                    </ErrorBoundary>
-                                )}
-                            </div>
-                        )}
-                    </main>
-                    <footer className="bg-white border-t border-slate-200 py-8 mt-12 print:hidden"><div className="max-w-7xl mx-auto px-4 text-center text-slate-400 text-sm"><p>Sistema de Controle de Estoque • v3.3</p></div></footer>
-                </div>
-            );
-        };
-
-        const root = createRoot(document.getElementById('root'));
-        root.render(<App />);
     </script>
 </body>
 </html>
