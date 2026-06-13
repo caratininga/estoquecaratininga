@@ -6,6 +6,7 @@
             const [searchQuery, setSearchQuery] = useState('');
             const [selectedProducts, setSelectedProducts] = useState([]);
             const [showConfirm, setShowConfirm] = useState(false);
+            const fileInputRef = window.useRef(null);
 
             useEffect(() => {
                 if(isOpen) {
@@ -58,6 +59,83 @@
                 });
             };
             const clearAll = () => setSelectedProducts([]);
+
+            const handleFileUpload = (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+
+                const reader = new FileReader();
+                reader.onload = (evt) => {
+                    try {
+                        const data = evt.target.result;
+                        const workbook = window.XLSX.read(data, { type: 'binary' });
+                        const firstSheetName = workbook.SheetNames[0];
+                        const worksheet = workbook.Sheets[firstSheetName];
+                        const json = window.XLSX.utils.sheet_to_json(worksheet);
+                        
+                        // Extract codes
+                        const importedCodes = json.map(row => row['Código'] || row['Codigo'] || row['codigo'] || row['CÓDIGO']).filter(Boolean);
+                        
+                        if (importedCodes.length === 0) {
+                            alert('Nenhum código encontrado na coluna "Código". Baixe o modelo para ver o formato correto.');
+                            return;
+                        }
+
+                        // Match with catalog
+                        const matchedProducts = [];
+                        const notFound = [];
+
+                        importedCodes.forEach(codeStr => {
+                            const codeToFind = String(codeStr).trim();
+                            
+                            // Find product name that has this code
+                            const matchName = Object.keys(productCatalog).find(name => 
+                                String(productCatalog[name]?.code).trim() === codeToFind
+                            );
+
+                            if (matchName) {
+                                // Check if it's in allProducts (active in this location)
+                                const inMaster = allProducts.find(p => p.name === matchName);
+                                if (inMaster) {
+                                    matchedProducts.push(matchName);
+                                } else {
+                                    notFound.push(`Cód ${codeToFind} (Não pertence a esta unidade)`);
+                                }
+                            } else {
+                                notFound.push(`Cód ${codeToFind}`);
+                            }
+                        });
+
+                        if (notFound.length > 0) {
+                            alert(`Os seguintes códigos não foram encontrados ou não pertencem a esta unidade e foram ignorados:\n${notFound.join(', ')}`);
+                        }
+
+                        if (matchedProducts.length > 0) {
+                            setSelectedProducts(prev => {
+                                const newSelection = [...prev];
+                                matchedProducts.forEach(mp => {
+                                    if (!newSelection.includes(mp)) newSelection.push(mp);
+                                });
+                                return newSelection;
+                            });
+                            alert(`${matchedProducts.length} produtos selecionados com sucesso!`);
+                        }
+                        
+                        if (e.target) e.target.value = null; // Reset input
+                    } catch (error) {
+                        console.error('Error importing Excel:', error);
+                        alert('Erro ao processar o arquivo Excel.');
+                    }
+                };
+                reader.readAsBinaryString(file);
+            };
+
+            const downloadTemplate = () => {
+                const ws = window.XLSX.utils.json_to_sheet([{ "Código": "123456", "Produto": "Nome do Produto Exemplo (Opcional para sistema, apenas para sua referência)" }]);
+                const wb = window.XLSX.utils.book_new();
+                window.XLSX.utils.book_append_sheet(wb, ws, "Modelo");
+                window.XLSX.writeFile(wb, "Modelo_Importacao_Diaria.xlsx");
+            };
 
             const getFinalDate = () => {
                 if (date && date.includes('-')) {
@@ -255,9 +333,17 @@
                                         </div>
 
                                         {/* Action buttons */}
-                                        <div className="flex gap-2 mb-2">
+                                        <div className="flex gap-2 mb-2 flex-wrap items-center">
                                             <button type="button" onClick={selectAll} className="text-xs font-bold text-blue-600 hover:text-blue-800 px-2 py-1 rounded-lg hover:bg-blue-50 transition-colors">Selecionar visíveis</button>
                                             <button type="button" onClick={clearAll} className="text-xs font-bold text-slate-500 hover:text-red-600 px-2 py-1 rounded-lg hover:bg-red-50 transition-colors">Limpar seleção</button>
+                                            <div className="w-px h-4 bg-slate-300 mx-1"></div>
+                                            <button type="button" onClick={() => fileInputRef.current?.click()} className="text-xs font-bold text-[#00a86b] hover:text-[#008f5a] px-2 py-1 rounded-lg hover:bg-green-50 transition-colors flex items-center gap-1">
+                                                <Upload size={12} /> Importar Excel
+                                            </button>
+                                            <button type="button" onClick={downloadTemplate} className="text-xs font-bold text-slate-500 hover:text-slate-800 px-2 py-1 rounded-lg hover:bg-slate-100 transition-colors flex items-center gap-1">
+                                                <Download size={12} /> Modelo
+                                            </button>
+                                            <input type="file" accept=".xlsx, .xls" ref={fileInputRef} onChange={handleFileUpload} style={{ display: 'none' }} />
                                         </div>
 
                                         {/* Product list grouped by category */}

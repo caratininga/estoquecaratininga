@@ -1183,6 +1183,7 @@
                                 <div className="space-y-1 mb-8">
                                     <button onClick={() => setViewMode('control')} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${viewMode === 'control' ? 'bg-green-50 text-[#00a86b]' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'}`}><AlertCircle size={18} /> Controle de Estoque</button>
                                     <button onClick={() => setViewMode('evolution')} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${viewMode === 'evolution' ? 'bg-green-50 text-[#00a86b]' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'}`}><TrendingUp size={18} /> Relatórios</button>
+                                    <button onClick={() => setViewMode('intelligence')} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${viewMode === 'intelligence' ? 'bg-green-50 text-[#00a86b]' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'}`}><Activity size={18} /> Inteligência ABC</button>
                                 </div>
 
                                 <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-3 px-2">Rotina</div>
@@ -1239,14 +1240,14 @@
                             </div>
                             
                             {/* Alert Banner */}
-                            {(!isEditing && viewMode !== 'products' && viewMode !== 'categories') && (
+                            {(!isEditing && viewMode === 'inventory') && (
                                 <div className="mt-4 flex items-center gap-2 text-sm text-[#003d33] bg-[#00a86b]/10 p-3 rounded-lg border border-[#00a86b]/20">
                                     <AlertCircle size={16} className="shrink-0" />
                                     <p>Selecione o período ou clique em <strong>"Modo Edição"</strong> para exibir e alterar os valores corretamente.</p>
                                 </div>
                             )}
                             {/* Count type toggle — shown when both weekly and daily exist for this date */}
-                            {hasBothTypes && (viewMode !== 'products' && viewMode !== 'categories') && (
+                            {hasBothTypes && viewMode === 'inventory' && (
                                 <div className="mt-3 flex items-center gap-2">
                                     <span className="text-xs font-bold text-slate-500 uppercase tracking-wide shrink-0">Visualizando:</span>
                                     <div className="flex bg-slate-100 rounded-lg p-1 gap-1">
@@ -1267,7 +1268,7 @@
                                 </div>
                             )}
                             {/* Daily Count Banner */}
-                            {isDailyCount && (viewMode !== 'products' && viewMode !== 'categories') && (
+                            {isDailyCount && viewMode === 'inventory' && (
                                 <div className="mt-3 flex items-center gap-3 text-sm text-blue-800 bg-blue-50 p-3 rounded-lg border border-blue-200">
                                     <Calendar size={16} className="shrink-0 text-blue-600" />
                                     <div>
@@ -1312,7 +1313,7 @@
                             )}
                             
                             {/* FILTERS BAR */}
-                            {(viewMode !== 'products' && viewMode !== 'categories') && (
+                            {(viewMode !== 'products' && viewMode !== 'categories' && viewMode !== 'intelligence') && (
                                 <div className="flex items-center gap-2 lg:gap-4 mb-6 bg-white p-2 md:p-4 rounded-xl border border-slate-200 shadow-sm print:hidden">
                                 <div className="hidden lg:flex items-center gap-2 font-bold text-slate-800 shrink-0">
                                     <List size={18} className="text-slate-400" /> 
@@ -1465,6 +1466,15 @@
                                         selectedLocation={selectedLocation} 
                                         getPreviousStockValues={getPreviousStockValues}
                                         getLastWeeklyStockBase={getLastWeeklyStockBase}
+                                        categories={categories}
+                                        catalog={productCatalog}
+                                        selectedDate={selectedDate}
+                                    />
+                                ) : viewMode === 'intelligence' ? (
+                                    <InventoryIntelligence 
+                                        dataSets={dataSets}
+                                        stockFlow={stockFlow}
+                                        selectedLocation={selectedLocation}
                                         categories={categories}
                                         catalog={productCatalog}
                                     />
