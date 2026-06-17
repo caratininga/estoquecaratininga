@@ -1,6 +1,11 @@
-        const EvolutionReport = ({ data, flowData, previousData, dataSets, stockFlow, selectedLocation, getPreviousStockValues, getLastWeeklyStockBase, categories, catalog }) => {
+        const EvolutionReport = ({ data, flowData, previousData, dataSets, stockFlow, selectedLocation, getPreviousStockValues, getLastWeeklyStockBase, categories, catalog, selectedDate }) => {
             const [isListModalOpen, setIsListModalOpen] = useState(false);
             const [historyMode, setHistoryMode] = useState('semanal'); // 'semanal' or 'diaria'
+            const [selectedMonth, setSelectedMonth] = useState(() => {
+                // Auto-init from selectedDate (format DD/MM)
+                const parts = (selectedDate || '').split('/');
+                return parts.length === 2 ? parseInt(parts[1], 10) || new Date().getMonth() + 1 : new Date().getMonth() + 1;
+            });
             const [activeMetrics, setActiveMetrics] = useState(() => {
                 const defaultMetrics = {
                     'Total de Produtos': false,
@@ -23,6 +28,15 @@
                 }
                 return defaultMetrics;
             });
+
+            // Sync selectedMonth when selectedDate changes (but user can override independently)
+            React.useEffect(() => {
+                const parts = (selectedDate || '').split('/');
+                if (parts.length === 2) {
+                    const m = parseInt(parts[1], 10);
+                    if (!isNaN(m) && m >= 1 && m <= 12) setSelectedMonth(m);
+                }
+            }, [selectedDate]);
 
             useEffect(() => {
                 localStorage.setItem('estoque_activeMetrics', JSON.stringify(activeMetrics));
@@ -126,6 +140,65 @@
                 { name: 'Com Divergência', value: divergentItems }
             ];
             const COLORS = ['#22c55e', '#ef4444'];
+
+            // ── TOP 5 DIVERGÊNCIAS DO MÊS ──────────────────────────────────────────
+            const monthNames = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+            const top5Data = React.useMemo(() => {
+                if (!dataSets || !stockFlow || !selectedLocation || !getPreviousStockValues) return { positive: [], negative: [] };
+                const locMap = { 'Matriz': 'matriz', 'Mucambo': 'mucambo', 'Tianguá': 'tiangua', 'Frecheirinha': 'frecheirinha' };
+                const locKey = locMap[selectedLocation];
+                if (!locKey) return { positive: [], negative: [] };
+
+                const mm = String(selectedMonth).padStart(2, '0');
+                // Filter all keys that belong to selected location AND selected month
+                const monthKeys = Object.keys(dataSets).filter(k => {
+                    if (!k.startsWith(`${locKey}_`)) return false;
+                    const parts = k.replace(`${locKey}_`, '').split('_');
+                    // parts[0]=DD, parts[1]=MM, parts[2]=diaria (optional)
+                    return parts[1] === mm;
+                });
+
+                // Accumulate divergences per product across all counted dates in the month
+                const productDivMap = {};
+
+                monthKeys.forEach(key => {
+                    const isDailyKey = key.endsWith('_diaria');
+                    const dateStrKey = key.replace(`${locKey}_`, '').replace('_diaria', '');
+                    const [dd, mmStr] = dateStrKey.split('_');
+                    const dateStr = `${dd}/${mmStr}`;
+
+                    const dateData = dataSets[key] || {};
+                    const dateFlow = stockFlow[key] || {};
+                    const prevResult = getPreviousStockValues(selectedLocation, dateStr, dataSets, isDailyKey);
+                    const prevMap = prevResult ? prevResult.stockMap : {};
+
+                    categories.forEach(cat => {
+                        const itemList = dateData[cat.id];
+                        if (!itemList) return;
+                        itemList.forEach(item => {
+                            const isGrid = cat.type === 'grid';
+                            const counted = isGrid
+                                ? ((parseInt(item.l1)||0)+(parseInt(item.l2)||0)+(parseInt(item.l3)||0)+(parseInt(item.l4)||0))
+                                : (parseInt(item.qtd)||0);
+                            const flow = dateFlow?.[cat.id]?.[item.nome] || { entry: 0, exit: 0 };
+                            const prev = prevMap?.[item.nome] || 0;
+                            const expected = (prev + (parseInt(flow.entry)||0)) - (parseInt(flow.exit)||0);
+                            const div = counted - expected;
+                            if (div === 0) return;
+                            if (!productDivMap[item.nome]) productDivMap[item.nome] = { nome: item.nome, categoria: cat.name, positive: 0, negative: 0, occurrences: 0 };
+                            if (div > 0) productDivMap[item.nome].positive += div;
+                            else productDivMap[item.nome].negative += Math.abs(div);
+                            productDivMap[item.nome].occurrences++;
+                        });
+                    });
+                });
+
+                const allProducts = Object.values(productDivMap);
+                const top5Positive = [...allProducts].filter(p => p.positive > 0).sort((a,b) => b.positive - a.positive).slice(0, 5);
+                const top5Negative = [...allProducts].filter(p => p.negative > 0).sort((a,b) => b.negative - a.negative).slice(0, 5);
+                return { positive: top5Positive, negative: top5Negative };
+            }, [dataSets, stockFlow, selectedLocation, selectedMonth, categories, getPreviousStockValues]);
+            // ────────────────────────────────────────────────────────────────────────
 
             let historicalData = [];
             if (dataSets && stockFlow && selectedLocation && getPreviousStockValues) {
@@ -353,6 +426,108 @@
                                 </div>
                             </div>
                         )}
+
+                        {/* TOP 5 DIVERGÊNCIAS DO MÊS */}
+                        <div className="mt-8 bg-white border border-slate-100 rounded-xl p-6 shadow-sm">
+                            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-6">
+                                <h4 className="text-sm font-semibold text-slate-800 flex items-center gap-2">
+                                    <span className="w-2 h-5 bg-gradient-to-b from-blue-500 to-red-500 rounded-full inline-block"></span>
+                                    Top 5 Divergências do Mês
+                                </h4>
+                                <div className="flex items-center gap-2">
+                                    <span className="text-xs text-slate-500 font-medium">Mês:</span>
+                                    <select
+                                        value={selectedMonth}
+                                        onChange={e => setSelectedMonth(parseInt(e.target.value))}
+                                        className="text-xs font-bold text-slate-700 bg-white border border-slate-200 rounded-lg px-3 py-1.5 cursor-pointer hover:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-400 transition-colors shadow-sm"
+                                    >
+                                        {monthNames.map((name, i) => (
+                                            <option key={i+1} value={i+1}>{name}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                                {/* TOP 5 POSITIVAS */}
+                                <div className="bg-blue-50 rounded-xl p-5 border border-blue-100">
+                                    <div className="flex items-center gap-2 mb-4">
+                                        <div className="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center text-white font-bold text-sm">+</div>
+                                        <div>
+                                            <h5 className="text-sm font-bold text-blue-900">Top 5 — Sobras (positivo)</h5>
+                                            <p className="text-xs text-blue-600">Produtos contados acima do teórico</p>
+                                        </div>
+                                    </div>
+                                    {top5Data.positive.length === 0 ? (
+                                        <div className="text-center py-6 text-blue-400 text-sm font-medium">Nenhuma sobra encontrada em {monthNames[selectedMonth-1]}</div>
+                                    ) : (
+                                        <div className="space-y-2">
+                                            {top5Data.positive.map((product, idx) => {
+                                                const maxVal = top5Data.positive[0]?.positive || 1;
+                                                const pct = (product.positive / maxVal) * 100;
+                                                return (
+                                                    <div key={product.nome} className="bg-white rounded-lg p-3 border border-blue-100">
+                                                        <div className="flex items-center justify-between mb-1.5">
+                                                            <div className="flex items-center gap-2 min-w-0">
+                                                                <span className="text-xs font-black text-blue-400 w-5 shrink-0">#{idx+1}</span>
+                                                                <span className="text-xs font-bold text-slate-800 uppercase truncate">{product.nome}</span>
+                                                            </div>
+                                                            <div className="flex items-center gap-2 shrink-0 ml-2">
+                                                                <span className="text-xs text-slate-500 font-medium">{product.occurrences}x</span>
+                                                                <span className="text-sm font-black text-blue-600">+{product.positive.toLocaleString('pt-BR')}</span>
+                                                            </div>
+                                                        </div>
+                                                        <div className="w-full bg-blue-100 rounded-full h-1.5">
+                                                            <div className="bg-blue-500 h-1.5 rounded-full transition-all" style={{width: `${pct}%`}}></div>
+                                                        </div>
+                                                        <span className="text-[10px] text-slate-400 font-medium">{product.categoria}</span>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* TOP 5 NEGATIVAS */}
+                                <div className="bg-red-50 rounded-xl p-5 border border-red-100">
+                                    <div className="flex items-center gap-2 mb-4">
+                                        <div className="w-8 h-8 rounded-full bg-red-500 flex items-center justify-center text-white font-bold text-sm">-</div>
+                                        <div>
+                                            <h5 className="text-sm font-bold text-red-900">Top 5 — Faltas (negativo)</h5>
+                                            <p className="text-xs text-red-600">Produtos contados abaixo do teórico</p>
+                                        </div>
+                                    </div>
+                                    {top5Data.negative.length === 0 ? (
+                                        <div className="text-center py-6 text-red-400 text-sm font-medium">Nenhuma falta encontrada em {monthNames[selectedMonth-1]}</div>
+                                    ) : (
+                                        <div className="space-y-2">
+                                            {top5Data.negative.map((product, idx) => {
+                                                const maxVal = top5Data.negative[0]?.negative || 1;
+                                                const pct = (product.negative / maxVal) * 100;
+                                                return (
+                                                    <div key={product.nome} className="bg-white rounded-lg p-3 border border-red-100">
+                                                        <div className="flex items-center justify-between mb-1.5">
+                                                            <div className="flex items-center gap-2 min-w-0">
+                                                                <span className="text-xs font-black text-red-400 w-5 shrink-0">#{idx+1}</span>
+                                                                <span className="text-xs font-bold text-slate-800 uppercase truncate">{product.nome}</span>
+                                                            </div>
+                                                            <div className="flex items-center gap-2 shrink-0 ml-2">
+                                                                <span className="text-xs text-slate-500 font-medium">{product.occurrences}x</span>
+                                                                <span className="text-sm font-black text-red-600">-{product.negative.toLocaleString('pt-BR')}</span>
+                                                            </div>
+                                                        </div>
+                                                        <div className="w-full bg-red-100 rounded-full h-1.5">
+                                                            <div className="bg-red-500 h-1.5 rounded-full transition-all" style={{width: `${pct}%`}}></div>
+                                                        </div>
+                                                        <span className="text-[10px] text-slate-400 font-medium">{product.categoria}</span>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             );

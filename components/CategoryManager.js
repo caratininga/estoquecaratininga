@@ -1,7 +1,6 @@
-const { useState } = window.React;
-const { Package, Plus, Trash2, Edit2, Check, X, AlertCircle, List, Grid, GripVertical } = window;
-
 const CategoryManager = ({ categories, setCategories, dataSets, customAlert, user }) => {
+    const { useState } = window.React || window;
+    const { Package, Plus, Trash2, Edit2, Check, X, AlertCircle, List, Grid, GripVertical } = window;
     const [isEditing, setIsEditing] = useState(null);
     const [editName, setEditName] = useState("");
     const [editType, setEditType] = useState("grid");

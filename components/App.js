@@ -154,6 +154,7 @@
 
             const [isEditing, setIsEditing] = useState(false);
             const [isPrintSheetMode, setIsPrintSheetMode] = useState(false);
+            const [showPrintSheetModal, setShowPrintSheetModal] = useState(false);
             const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
             const [alertMessage, setAlertMessage] = useState(null);
 
@@ -478,23 +479,94 @@
                 return { stockMap: {}, baseDate: null };
             };
 
-            // Acumula TODAS as movimentações entre baseDate (exclusive) e currentDate (inclusive)
+            // Acumula TODAS as movimentações entre baseDate (inclusive) e currentDate (exclusive)
             // Merges flow from both the semanal key and the _diaria key for each date
-            const getAccumulatedFlow = (location, baseDate, currentDate, allDataSets, allStockFlow) => {
-                const allDates = sortDates(getDatesForLocation(location, allDataSets));
-                const baseDateObj = baseDate ? (() => { const [d,m] = baseDate.split('/').map(Number); return new Date(new Date().getFullYear(), m-1, d); })() : null;
+            const getAccumulatedFlow = (location, dateMap, currentDate, allDataSets, allStockFlow) => {
+                const datesSet = new Set(getDatesForLocation(location, allDataSets));
+                
+                // Extrai também datas que só têm movimento e não têm ficha de contagem
+                const locMap = { 'Matriz': 'matriz', 'Mucambo': 'mucambo', 'Tianguá': 'tiangua', 'Frecheirinha': 'frecheirinha' };
+                const prefix = locMap[location] || location;
+                Object.keys(allStockFlow || {}).forEach(k => {
+                    if (k.startsWith(prefix + "_")) {
+                        let datePart = k.replace(prefix + '_', '');
+                        if (datePart.endsWith('_diaria')) datePart = datePart.slice(0, -7);
+                        if (datePart.endsWith('_semanal')) datePart = datePart.slice(0, -8);
+                        datesSet.add(datePart.replace('_', '/'));
+                    }
+                });
+                
+                const allDates = sortDates(Array.from(datesSet));
                 const currentDateObj = (() => { const [d,m] = currentDate.split('/').map(Number); return new Date(new Date().getFullYear(), m-1, d); })();
+
+                const isCurrentDaily = Object.keys(dateMap).some(k => k.endsWith('_diaria'));
+                
+                // Pega a data base de CADA produto chamando getPreviousStockValues diretamente!
+                // Isso garante 100% de consistência com o que a UI está mostrando na coluna "Contagem Anterior"
+                const { dateMap: prevDates } = getPreviousStockValues(location, currentDate, allDataSets, isCurrentDaily);
+                
+                const prevStockMap = {};
+                Object.keys(prevDates).forEach(prod => {
+                    // prevDates[prod] é tipo "15/06 (S)". Extraímos só os 5 primeiros caracteres "15/06"
+                    prevStockMap[prod] = prevDates[prod].substring(0, 5);
+                });
+
+                // Encontra a data da última contagem SEMANAL (para usar como fallback)
+                const weeklyDates = Object.keys(allDataSets)
+                    .filter(k => k.startsWith(prefix + "_") && k.endsWith('_semanal'))
+                    .map(k => {
+                        const parts = k.replace(prefix + '_', '').slice(0, -8).split('_');
+                        return `${parts[0]}/${parts[1]}`;
+                    });
+                
+                const sortedWeeklyDates = sortDates(weeklyDates);
+                const lastWeeklyDateStr = sortedWeeklyDates.reduce((found, d) => {
+                    const [dd, mm] = d.split('/').map(Number);
+                    const dObj = new Date(new Date().getFullYear(), mm-1, dd);
+                    return dObj < currentDateObj ? d : found;
+                }, null);
+                const lastWeeklyDateObj = lastWeeklyDateStr ? (() => { 
+                    const [d,m] = lastWeeklyDateStr.split('/').map(Number); 
+                    return new Date(new Date().getFullYear(), m-1, d); 
+                })() : null;
 
                 const accumulated = {};
 
-                const mergeFlow = (flow) => {
+                const mergeFlow = (flow, dateObj, dStr) => {
                     if (!flow) return;
                     categories.forEach(cat => {
                         if (flow[cat.id]) {
                             Object.entries(flow[cat.id]).forEach(([productName, pFlow]) => {
-                                if (!accumulated[productName]) accumulated[productName] = { entry: 0, exit: 0 };
-                                accumulated[productName].entry += (parseInt(pFlow.entry)||0);
-                                accumulated[productName].exit  += (parseInt(pFlow.exit)||0);
+                                const prodBaseDateStr = prevStockMap[productName];
+                                const prodBaseDateObj = prodBaseDateStr ? (() => { 
+                                    const [d,m] = prodBaseDateStr.split('/').map(Number); 
+                                    return new Date(new Date().getFullYear(), m-1, d); 
+                                })() : null;
+
+                                const baseObj = prodBaseDateObj || lastWeeklyDateObj;
+                                const isAfterBase = baseObj ? dateObj >= baseObj : true;
+                                
+                                const isBeforeCurrent = dateObj < currentDateObj;
+
+                                if (!accumulated[productName]) {
+                                    accumulated[productName] = { 
+                                        entry: 0, exit: 0, formulaIn: [], formulaOut: [], 
+                                        debugBase: prodBaseDateStr || (lastWeeklyDateStr ? `G:${lastWeeklyDateStr}` : 'ALL'),
+                                        debugLogs: []
+                                    };
+                                }
+
+                                if (isAfterBase && isBeforeCurrent) {
+                                    const inVal = parseInt(pFlow.entry)||0;
+                                    const outVal = parseInt(pFlow.exit)||0;
+                                    accumulated[productName].entry += inVal;
+                                    accumulated[productName].exit  += outVal;
+                                    if (inVal > 0) accumulated[productName].formulaIn.push(`${dStr}:${inVal}`);
+                                    if (outVal > 0) accumulated[productName].formulaOut.push(`${dStr}:${outVal}`);
+                                    accumulated[productName].debugLogs.push(`Added ${dStr}`);
+                                } else {
+                                    accumulated[productName].debugLogs.push(`Skipped ${dStr} (A:${isAfterBase} B:${isBeforeCurrent})`);
+                                }
                             });
                         }
                     });
@@ -503,19 +575,13 @@
                 allDates.forEach(d => {
                     const [dd, mm] = d.split('/').map(Number);
                     const dateObj = new Date(new Date().getFullYear(), mm-1, dd);
-                    const isAfterBase = baseDateObj ? dateObj > baseDateObj : true;
-                    const isBeforeOrEqualCurrent = dateObj <= currentDateObj;
-
-                    if (isAfterBase && isBeforeOrEqualCurrent) {
-                        // Collect flow from semanal key AND diaria key for this date
-                        mergeFlow(allStockFlow[getDatasetKey(location, d, 'semanal')]);
-                        mergeFlow(allStockFlow[getDatasetKey(location, d, 'diaria')]);
-                    }
+                    // Lê exclusivamente os fluxos salvos na Movimentação Mensal (_diaria)
+                    mergeFlow(allStockFlow[getDatasetKey(location, d, 'diaria')], dateObj, d);
                 });
                 return accumulated;
             };
 
-            const getPreviousStockValues = (location, currentDate, allDataSets, isCurrentDaily = false) => {
+            function getPreviousStockValues(location, currentDate, allDataSets, isCurrentDaily = false) {
                 const allDates = getDatesForLocation(location, allDataSets);
                 if (!allDates.includes(currentDate)) allDates.push(currentDate);
                 allDates.sort((a, b) => {
@@ -535,22 +601,24 @@
                 for (let i = currentIndex - 1; i >= 0; i--) {
                     const prevDate = allDates[i];
                     
-                    const dailyKey = getDatasetKey(location, prevDate, 'diaria');
-                    const candidateDaily = allDataSets[dailyKey];
-                    if (candidateDaily) {
-                        categories.forEach(cat => {
-                            if (candidateDaily[cat.id]) {
-                                candidateDaily[cat.id].forEach(item => {
-                                    if (stockMap[item.nome] === undefined) {
-                                        const total = cat.type === 'grid' 
-                                            ? ((parseInt(item.l1)||0) + (parseInt(item.l2)||0) + (parseInt(item.l3)||0) + (parseInt(item.l4)||0))
-                                            : (parseInt(item.qtd)||0);
-                                        stockMap[item.nome] = total;
-                                        dateMap[item.nome] = `${prevDate} (D)`;
-                                    }
-                                });
-                            }
-                        });
+                    if (isCurrentDaily) {
+                        const dailyKey = getDatasetKey(location, prevDate, 'diaria');
+                        const candidateDaily = allDataSets[dailyKey];
+                        if (candidateDaily) {
+                            categories.forEach(cat => {
+                                if (candidateDaily[cat.id]) {
+                                    candidateDaily[cat.id].forEach(item => {
+                                        if (stockMap[item.nome] === undefined) {
+                                            const total = cat.type === 'grid' 
+                                                ? ((parseInt(item.l1)||0) + (parseInt(item.l2)||0) + (parseInt(item.l3)||0) + (parseInt(item.l4)||0))
+                                                : (parseInt(item.qtd)||0);
+                                            stockMap[item.nome] = total;
+                                            dateMap[item.nome] = `${prevDate} (D)`;
+                                        }
+                                    });
+                                }
+                            });
+                        }
                     }
 
                     const weeklyKey = getDatasetKey(location, prevDate, 'semanal');
@@ -590,8 +658,10 @@
                 for (let i = idx - 1; i >= 0; i--) {
                     const d = tempDates[i];
                     
-                    const dailyKey = getDatasetKey(location, d, 'diaria');
-                    if (allDataSets[dailyKey]) return `${d} (Diária)`;
+                    if (isCurrentDaily) {
+                        const dailyKey = getDatasetKey(location, d, 'diaria');
+                        if (allDataSets[dailyKey]) return `${d} (Diária)`;
+                    }
 
                     const weeklyKey = getDatasetKey(location, d, 'semanal');
                     const candidate = allDataSets[weeklyKey];
@@ -610,16 +680,11 @@
             const hasDailyForDate  = !!dataSets[dailyKeyForDate];
             const hasBothTypes = hasWeeklyForDate && hasDailyForDate;
 
-            // For daily counts: find last weekly base + accumulated flow
+            // For daily counts: find last weekly base
             const { stockMap: dailyBaseStockMap, baseDate: dailyBaseDate } = useMemo(() => {
                 if (!isDailyCount) return { stockMap: {}, baseDate: null };
                 return getLastWeeklyStockBase(selectedLocation, selectedDate, dataSets);
             }, [isDailyCount, selectedLocation, selectedDate, dataSets]);
-
-            const accumulatedFlowData = useMemo(() => {
-                if (!isDailyCount) return null;
-                return getAccumulatedFlow(selectedLocation, dailyBaseDate, selectedDate, dataSets, stockFlow);
-            }, [isDailyCount, selectedLocation, dailyBaseDate, selectedDate, dataSets, stockFlow]);
 
             const currentData = useMemo(() => {
                 const raw = dataSets[currentKey];
@@ -675,7 +740,8 @@
             const effectivePreviousStock = prevStockResult.stockMap;
             const previousDateMap = prevStockResult.dateMap;
             
-            const effectiveFlowData = currentFlowData;
+            const accumulatedFlowData = getAccumulatedFlow(selectedLocation, previousDateMap, selectedDate, dataSets, stockFlow);
+            const effectiveFlowData = accumulatedFlowData;
 
             const previousStockData = effectivePreviousStock;
             const previousDateLabel = getPreviousDateLabel(selectedDate, selectedLocation, dataSets, isDailyCount);
@@ -811,17 +877,49 @@
                 }
             };
 
-            const handleFlowUpdate = (category, productName, type, value) => {
+            const handleFlowUpdate = (category, productName, type, value, explicitDate = null) => {
+                const targetKey = explicitDate ? getDatasetKey(selectedLocation, explicitDate, 'diaria') : currentKey;
                 const val = value === '' ? 0 : parseInt(value);
                 setStockFlow(prev => {
-                    const newStockFlow = { ...prev, [currentKey]: { ...prev[currentKey], [category]: { ...prev[currentKey]?.[category], [productName]: { ...prev[currentKey]?.[category]?.[productName], [type]: val } } } };
+                    const newStockFlow = { ...prev, [targetKey]: { ...prev[targetKey], [category]: { ...prev[targetKey]?.[category], [productName]: { ...prev[targetKey]?.[category]?.[productName], [type]: val } } } };
                     
                     if (user) {
-                        if (!pendingFirebaseUpdate.current[currentKey]) pendingFirebaseUpdate.current[currentKey] = {};
-                        pendingFirebaseUpdate.current[currentKey].stockFlow = newStockFlow[currentKey];
+                        if (!pendingFirebaseUpdate.current[targetKey]) pendingFirebaseUpdate.current[targetKey] = {};
+                        pendingFirebaseUpdate.current[targetKey].stockFlow = newStockFlow[targetKey];
                         scheduleSave();
                     }
                     return newStockFlow;
+                });
+            };
+
+            const handleBulkFlowUpdate = (updatesByKey) => {
+                setStockFlow(prev => {
+                    const newStockFlow = { ...prev };
+                    let hasChanges = false;
+                    
+                    Object.keys(updatesByKey).forEach(key => {
+                        if (!newStockFlow[key]) newStockFlow[key] = {};
+                        Object.keys(updatesByKey[key]).forEach(cat => {
+                            if (!newStockFlow[key][cat]) newStockFlow[key][cat] = {};
+                            Object.keys(updatesByKey[key][cat]).forEach(prod => {
+                                if (!newStockFlow[key][cat][prod]) newStockFlow[key][cat][prod] = {};
+                                const entryVal = updatesByKey[key][cat][prod].entry;
+                                const exitVal = updatesByKey[key][cat][prod].exit;
+                                if (entryVal !== undefined) newStockFlow[key][cat][prod].entry = entryVal;
+                                if (exitVal !== undefined) newStockFlow[key][cat][prod].exit = exitVal;
+                                hasChanges = true;
+                            });
+                        });
+                        
+                        if (user) {
+                            if (!pendingFirebaseUpdate.current[key]) pendingFirebaseUpdate.current[key] = {};
+                            pendingFirebaseUpdate.current[key].stockFlow = newStockFlow[key];
+                        }
+                    });
+                    
+                    if (hasChanges && user) scheduleSave();
+                    
+                    return hasChanges ? newStockFlow : prev;
                 });
             };
 
@@ -1102,6 +1200,9 @@
                     productCatalog={productCatalog}
                     categories={categories}
                     dynamicMasterList={dynamicMasterList}
+                    dataSets={dataSets}
+                    stockFlow={stockFlow}
+                    selectedLocation={selectedLocation}
                 />
                     
                     {alertModalUI}
@@ -1189,6 +1290,7 @@
                                 <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-3 px-2">Rotina</div>
                                 <div className="space-y-1 mb-8">
                                     <button onClick={() => setViewMode('counting')} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${viewMode === 'counting' ? 'bg-green-50 text-[#00a86b]' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'}`}><ClipboardList size={18} /> Inventário</button>
+                                    <button onClick={() => setViewMode('movements')} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${viewMode === 'movements' ? 'bg-green-50 text-[#00a86b]' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'}`}><ArrowRightLeft size={18} /> Movimentação Mensal</button>
                                 </div>
 
                                 <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-3 px-2">Administração</div>
@@ -1350,18 +1452,12 @@
                                                 <button onClick={() => setHideZeroProducts(!hideZeroProducts)} className={`flex items-center justify-center gap-1 px-2 py-1.5 rounded-lg text-sm font-bold transition-all shadow-sm border ${hideZeroProducts ? 'bg-purple-50 text-purple-600 border-purple-200' : 'bg-white hover:bg-slate-50 text-slate-700 border-slate-200'}`} title="Ocultar produtos com contagens zeradas">
                                                     <Filter size={16} /> <span className="hidden xl:inline">Ocultar Zerados</span>
                                                 </button>
-                                                <button onClick={handleDownloadTemplate} className="flex items-center justify-center gap-1 bg-white hover:bg-slate-50 text-slate-700 px-2 py-1.5 rounded-lg text-sm font-bold transition-all shadow-sm border border-slate-200" title="Baixar Modelo de Movimentação">
-                                                    <FileDown size={16} /> <span className="hidden xl:inline">Modelo</span>
-                                                </button>
-                                                <button onClick={() => fileInputRef.current && fileInputRef.current.click()} className="flex items-center justify-center gap-1 bg-slate-100 hover:bg-slate-200 text-slate-700 px-2 py-1.5 rounded-lg text-sm font-bold transition-all shadow-sm border border-slate-200" title="Importar Movimentação do Varejo">
-                                                    <Upload size={16} /> <span className="hidden xl:inline">Importar Mov.</span>
-                                                </button>
                                             </>
                                         )}
 
                                         {viewMode === 'counting' && (
                                             <>
-                                                <button onClick={() => { setIsPrintSheetMode(true); setTimeout(() => { window.print(); setIsPrintSheetMode(false); }, 500); }} className="flex items-center justify-center gap-1 bg-white hover:bg-slate-50 text-slate-700 px-2 py-1.5 rounded-lg text-sm font-bold transition-all shadow-sm border border-slate-200" title="Imprimir Folha de Contagem">
+                                                <button onClick={() => setShowPrintSheetModal(true)} className="flex items-center justify-center gap-1 bg-white hover:bg-slate-50 text-slate-700 px-2 py-1.5 rounded-lg text-sm font-bold transition-all shadow-sm border border-slate-200" title="Imprimir Folha de Contagem">
                                                     <Printer size={16} /> <span className="hidden xl:inline">Folha Contagem</span>
                                                 </button>
                                                 <button onClick={handleDownloadCountingTemplate} className="flex items-center justify-center gap-1 bg-white hover:bg-slate-50 text-slate-700 px-2 py-1.5 rounded-lg text-sm font-bold transition-all shadow-sm border border-slate-200" title="Baixar Modelo de Contagem">
@@ -1376,12 +1472,16 @@
                                         <button onClick={exportToExcel} className="flex items-center justify-center w-8 h-8 bg-white hover:bg-slate-50 text-slate-600 rounded-md transition-colors border border-slate-200 shadow-sm shrink-0" title="Baixar Excel"><Download size={16} /></button>
                                         <button onClick={handlePrint} className="flex items-center justify-center w-8 h-8 bg-white hover:bg-slate-50 text-slate-600 rounded-md transition-colors border border-slate-200 shadow-sm shrink-0" title="Imprimir Relatório"><Printer size={16} /></button>
                                         
-                                        <button className={`flex items-center gap-1 px-2 md:px-4 py-1.5 rounded-lg text-xs md:text-sm font-bold transition-all shadow-sm shrink-0 ${isEditing ? 'bg-white border border-[#00a86b] text-[#00a86b] hover:bg-green-50' : 'bg-[#00a86b] border border-transparent text-white hover:bg-[#00905a]'}`} onClick={() => setIsEditing(!isEditing)}>
-                                            <Save size={16} /> <span className="hidden md:inline">{isEditing ? 'Salvar Edição' : 'Modo Edição'}</span>
-                                        </button>
-                                        <button onClick={handleDeleteClick} className="flex items-center justify-center gap-1 px-2 py-1.5 rounded-lg text-sm font-bold transition-all shadow-sm bg-red-100 text-red-600 hover:bg-red-200 border border-transparent shrink-0" title="Excluir Contagem">
-                                            <Trash2 size={16} /> <span className="hidden xl:inline">Excluir</span>
-                                        </button>
+                                        {viewMode === 'counting' && (
+                                            <>
+                                                <button className={`flex items-center gap-1 px-2 md:px-4 py-1.5 rounded-lg text-xs md:text-sm font-bold transition-all shadow-sm shrink-0 ${isEditing ? 'bg-white border border-[#00a86b] text-[#00a86b] hover:bg-green-50' : 'bg-[#00a86b] border border-transparent text-white hover:bg-[#00905a]'}`} onClick={() => setIsEditing(!isEditing)}>
+                                                    <Save size={16} /> <span className="hidden md:inline">{isEditing ? 'Salvar Edição' : 'Modo Edição'}</span>
+                                                </button>
+                                                <button onClick={handleDeleteClick} className="flex items-center justify-center gap-1 px-2 py-1.5 rounded-lg text-sm font-bold transition-all shadow-sm bg-red-100 text-red-600 hover:bg-red-200 border border-transparent shrink-0" title="Excluir Contagem">
+                                                    <Trash2 size={16} /> <span className="hidden xl:inline">Excluir</span>
+                                                </button>
+                                            </>
+                                        )}
                                     </div>
                                 </div>
                                 </div>
@@ -1478,6 +1578,16 @@
                                         categories={categories}
                                         catalog={productCatalog}
                                     />
+                                ) : viewMode === 'movements' ? (
+                                    <window.MovementsMatrix 
+                                        selectedLocation={selectedLocation}
+                                        productCatalog={productCatalog}
+                                        categories={categories}
+                                        dynamicMasterList={dynamicMasterList}
+                                        stockFlow={stockFlow}
+                                        onFlowUpdate={handleFlowUpdate}
+                                        onBulkFlowUpdate={handleBulkFlowUpdate}
+                                    />
                                 ) : viewMode === 'counting' ? (
                                     <>
                                         {categories.map(cat => (
@@ -1491,6 +1601,9 @@
                                                 isEditing={isEditing} 
                                                 catalog={productCatalog} 
                                                 selectedLocation={selectedLocation}
+                                                isPrintSheetMode={isPrintSheetMode}
+                                                prevStockResult={prevStockResult}
+                                                stockFlowData={effectiveFlowData}
                                                 isPrintSheetMode={isPrintSheetMode}
                                             />
                                         ))}
@@ -1529,7 +1642,7 @@
                                                 title={cat.name} 
                                                 data={currentData[cat.id]} 
                                                 category={cat.id} 
-                                                stockFlowData={isDailyCount ? effectiveFlowData[cat.id] : currentFlowData[cat.id]} 
+                                                stockFlowData={effectiveFlowData} 
                                                 previousStockData={previousStockData} 
                                                 previousDateMap={previousDateMap}
                                                 onFlowUpdate={handleFlowUpdate} 
@@ -1593,6 +1706,65 @@
                                         onClick={() => setIsPrintModalOpen(false)} 
                                         className="w-full mt-6 px-5 py-3 rounded-xl font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 transition-colors"
                                     >
+                                        Cancelar
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {showPrintSheetModal && (
+                        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+                            <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden flex flex-col border border-slate-100 transform transition-all">
+                                <div className="flex justify-between items-center p-5 border-b border-slate-100 bg-slate-50">
+                                    <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+                                        <Printer className="text-slate-500" size={20} />
+                                        Folha de Contagem
+                                    </h3>
+                                    <button onClick={() => setShowPrintSheetModal(false)} className="text-slate-400 hover:text-red-500 transition-colors p-1 rounded-lg hover:bg-red-50">
+                                        <X size={20} />
+                                    </button>
+                                </div>
+                                <div className="p-6">
+                                    <p className="text-slate-600 mb-6 text-sm">Selecione o formato desejado para a impressão:</p>
+                                    <div className="flex flex-col gap-3">
+                                        <button 
+                                            onClick={() => {
+                                                setShowPrintSheetModal(false);
+                                                setIsPrintSheetMode('without-expected');
+                                                setTimeout(() => { window.print(); setIsPrintSheetMode(false); }, 500);
+                                            }}
+                                            className="flex items-center gap-4 p-4 border border-slate-200 rounded-xl hover:border-blue-500 hover:bg-blue-50 transition-all text-left"
+                                        >
+                                            <div className="bg-slate-100 p-2 rounded-lg text-slate-600">
+                                                <FileText size={24} />
+                                            </div>
+                                            <div>
+                                                <p className="font-bold text-slate-800">Folha em Branco</p>
+                                                <p className="text-xs text-slate-500 mt-1">Imprime apenas os espaços para preenchimento manual.</p>
+                                            </div>
+                                        </button>
+                                        
+                                        <button 
+                                            onClick={() => {
+                                                setShowPrintSheetModal(false);
+                                                setIsPrintSheetMode('with-expected');
+                                                setTimeout(() => { window.print(); setIsPrintSheetMode(false); }, 500);
+                                            }}
+                                            className="flex items-center gap-4 p-4 border border-slate-200 rounded-xl hover:border-[#00a86b] hover:bg-[#00a86b]/10 transition-all text-left"
+                                        >
+                                            <div className="bg-[#00a86b]/20 p-2 rounded-lg text-[#00a86b]">
+                                                <TrendingUp size={24} />
+                                            </div>
+                                            <div>
+                                                <p className="font-bold text-slate-800">Com Estoque Teórico</p>
+                                                <p className="text-xs text-slate-500 mt-1">Inclui a coluna com a previsão do sistema para orientar a contagem.</p>
+                                            </div>
+                                        </button>
+                                    </div>
+                                </div>
+                                <div className="bg-slate-50 p-4 border-t border-slate-100 flex justify-end">
+                                    <button onClick={() => setShowPrintSheetModal(false)} className="px-5 py-2.5 text-sm font-bold text-slate-600 hover:bg-slate-200 rounded-xl transition-all">
                                         Cancelar
                                     </button>
                                 </div>

@@ -1,7 +1,20 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-    <!-- Debug overlay removido para produção -->
+    <script>
+    window.onerror = function(msg, src, ln, col, err) {
+        document.body.innerHTML += '<div style="color:red; background:#fee; border:1px solid red; position:fixed; top:10px; left:10px; right:10px; padding:20px; z-index:999999;">' + 
+            '<b>ERRO JAVASCRIPT:</b><br/>' + msg + '<br/>File: ' + src + ' Line: ' + ln + 
+            '<pre>' + (err && err.stack ? err.stack : '') + '</pre></div>';
+    };
+    var oldErr = console.error;
+    console.error = function() {
+        var args = Array.prototype.slice.call(arguments).join(" ");
+        document.body.innerHTML += '<div style="color:white; background:red; border:1px solid darkred; position:fixed; top:200px; left:10px; right:10px; padding:20px; z-index:999999;">' + 
+            '<b>CONSOLE.ERROR:</b><br/>' + args + '</div>';
+        oldErr.apply(console, arguments);
+    };
+    </script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="description" content="Sistema de Gestão de Estoque">
@@ -10,14 +23,23 @@
     
     <title>Estoque Caratininga</title>
     
+    <script>
+        // Previne que a roda do mouse altere valores em campos do tipo número acidentalmente
+        document.addEventListener("wheel", function(event){
+            if(document.activeElement.type === "number"){
+                document.activeElement.blur();
+            }
+        });
+    </script>
+    
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     
     <!-- SheetJS (XLSX) -->
     <script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"></script>
 
-    <!-- Babel para compilar JSX no navegador -->
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <!-- Babel para compilar JSX no navegador (Fixado na versão 7.23.0 para evitar erro de importação do novo JSX runtime) -->
+    <script src="https://unpkg.com/@babel/standalone@7.23.0/babel.min.js"></script>
 
     <style>
         @media print {
@@ -30,6 +52,17 @@
                 print-color-adjust: exact;
                 zoom: 0.55; /* Reduz a escala para 55% para caber mais itens por folha A4 */
             }
+            
+            /* Remove spinners de campos numéricos */
+            input[type=number]::-webkit-inner-spin-button, 
+            input[type=number]::-webkit-outer-spin-button { 
+                -webkit-appearance: none; 
+                margin: 0; 
+            }
+            input[type=number] {
+                -moz-appearance: textfield;
+            }
+
             /* Garante que cores de fundo (azul/verde/vermelho) apareçam na impressão */
             * {
                 -webkit-print-color-adjust: exact !important;
@@ -58,7 +91,7 @@
             Download, FileSpreadsheet, Calculator, Calendar, Building2, MapPin, 
             IceCream, Wine, ArrowRightLeft, ClipboardList, AlertCircle, Cloud, 
             LogIn, LogOut, Save, RefreshCw, Upload, FileDown, Printer, User, Plus, TrendingUp, List, X, Package, Trash2, Utensils, Edit2, Check, Grid, GripVertical, Filter,
-            Activity, AlertTriangle, CheckCircle, Clock
+            Activity, AlertTriangle, CheckCircle, Clock, FileText, ChevronLeft, ChevronRight
         } from 'https://esm.sh/lucide-react@0.292.0';
         
         import { 
@@ -75,7 +108,7 @@
             Download, FileSpreadsheet, Calculator, Calendar, Building2, MapPin, 
             IceCream, Wine, ArrowRightLeft, ClipboardList, AlertCircle, Cloud, 
             LogIn, LogOut, Save, RefreshCw, Upload, FileDown, Printer, User, Plus, TrendingUp, List, X, Package, Trash2, Utensils, Edit2, Check, Grid, GripVertical, Filter,
-            Activity, AlertTriangle, CheckCircle, Clock,
+            Activity, AlertTriangle, CheckCircle, Clock, FileText, ChevronLeft, ChevronRight,
             PieChart, Pie, Cell, Tooltip, Legend, BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, LineChart, Line, LabelList
         });
 
@@ -227,7 +260,7 @@
         // --- HELPER DE DATAS ---
         const getDatesForLocation = (location, dataSets) => {
             const locMap = { 'Matriz': 'matriz', 'Mucambo': 'mucambo', 'Tianguá': 'tiangua', 'Frecheirinha': 'frecheirinha' };
-            const prefix = locMap[location];
+            const prefix = locMap[location] || location;
             if (!prefix) return [];
             
             // Pega as chaves, extrai a data, remove duplicatas (ignora sufixo _diaria)
@@ -256,7 +289,7 @@
 
         // --- COMPONENTES ---
 
-        const Section = ({ title, data, category, onUpdate, type = "grid", isEditing = false, catalog = {}, selectedLocation, isPrintSheetMode = false }) => {
+        const Section = ({ title, data, category, onUpdate, type = "grid", isEditing = false, catalog = {}, selectedLocation, isPrintSheetMode = false, prevStockResult = null, stockFlowData = null }) => {
             const [sortConfig, setSortConfig] = window.React.useState({ key: 'nome', direction: 'asc' });
             
             const filteredData = React.useMemo(() => {
@@ -320,6 +353,9 @@
                                         <th className={`px-2 py-3 text-center font-semibold tracking-wide border-white/10 print:bg-transparent print:px-1 print:py-2 ${isPrintSheetMode ? 'print:border-black border border-slate-300' : 'border-r'}`}>Loc 2</th>
                                         <th className={`px-2 py-3 text-center font-semibold tracking-wide border-white/10 print:bg-transparent print:px-1 print:py-2 ${isPrintSheetMode ? 'print:border-black border border-slate-300' : 'border-r'}`}>Loc 3</th>
                                         <th className={`px-2 py-3 text-center font-semibold tracking-wide print:bg-transparent print:px-1 print:py-2 ${isPrintSheetMode ? 'print:border-black border border-slate-300' : ''}`}>Loc 4</th>
+                                        {isPrintSheetMode === 'with-expected' && (
+                                            <th className="px-2 py-3 lg:px-4 text-center font-bold tracking-wide print:px-1 print:py-1 whitespace-nowrap print:border-black border border-slate-300">Teórico</th>
+                                        )}
                                         {!isPrintSheetMode && (
                                             <>
                                                 <th className="px-3 py-3 lg:px-6 text-center font-bold bg-black/20 print:bg-transparent print:px-2 print:py-1">Total</th>
@@ -333,6 +369,9 @@
                                         <th onClick={() => handleSort('code')} className={`px-2 py-3 lg:px-4 w-12 lg:w-16 text-center font-semibold tracking-wide cursor-pointer hover:bg-black/10 transition-colors print:px-1 print:py-1 ${isPrintSheetMode ? 'print:border-black border border-slate-300' : ''}`}>Cód. {sortConfig.key === 'code' ? (sortConfig.direction === 'asc' ? '↑' : '↓') : ''}</th>
                                         <th onClick={() => handleSort('nome')} className={`px-3 py-3 lg:px-6 w-1/2 font-semibold tracking-wide cursor-pointer hover:bg-black/10 transition-colors print:px-2 print:py-1 whitespace-nowrap ${isPrintSheetMode ? 'print:border-black border border-slate-300' : ''}`}>Produto {sortConfig.key === 'nome' ? (sortConfig.direction === 'asc' ? '↑' : '↓') : ''}</th>
                                         <th className={`px-3 py-3 lg:px-6 text-center w-1/4 font-bold bg-black/20 print:bg-transparent print:px-2 print:py-2 ${isPrintSheetMode ? 'print:border-black border border-slate-300' : ''}`}>Quantidade</th>
+                                        {isPrintSheetMode === 'with-expected' && (
+                                            <th className="px-2 py-3 lg:px-4 text-center font-bold tracking-wide print:px-1 print:py-1 whitespace-nowrap print:border-black border border-slate-300">Teórico</th>
+                                        )}
                                         {!isPrintSheetMode && (
                                             <>
                                                 <th className="px-2 py-3 lg:px-4 text-center font-semibold tracking-wide print:bg-transparent print:px-1 print:py-1 whitespace-nowrap">Valor Unit.</th>
@@ -350,6 +389,9 @@
                                     const isZero = total === 0;
                                     const displayCode = catalog[item.nome]?.code || item.code || '-';
                                     const unitValue = catalog[item.nome]?.unitValues?.[selectedLocation] || 0;
+                                    const flow = stockFlowData?.[item.nome] || { entry: 0, exit: 0 };
+                                    const prevStock = prevStockResult?.stockMap?.[item.nome] || 0;
+                                    const expectedStock = (prevStock + (flow.entry || 0)) - (flow.exit || 0);
                                     return (
                                         <tr key={item.nome} className={`transition-colors ${isZero && !isPrintSheetMode ? 'bg-white opacity-60 hover:opacity-100 print:opacity-50' : 'bg-white hover:bg-gray-50'}`}>
                                             <td className={`px-4 py-3 text-center text-gray-400 text-xs font-bold print:p-1 ${isPrintSheetMode ? 'border border-slate-300 print:border-black' : ''}`}>{displayCode}</td>
@@ -363,6 +405,11 @@
                                                             )}
                                                         </td>
                                                     ))}
+                                                    {isPrintSheetMode === 'with-expected' && (
+                                                        <td className="px-2 py-2 text-center font-bold print:px-1 print:py-1 whitespace-nowrap print:border-black border border-slate-300">
+                                                            {expectedStock}
+                                                        </td>
+                                                    )}
                                                     {!isPrintSheetMode && (
                                                         <>
                                                             <td className={`px-6 py-3 text-center font-bold bg-gray-50 print:bg-transparent print:px-2 print:py-1 ${isZero ? 'text-gray-400' : 'text-blue-600'}`}>{total.toLocaleString('pt-BR')}</td>
@@ -378,6 +425,11 @@
                                                             <input type="number" min="0" placeholder="0" disabled={!isEditing} className={`w-24 text-center rounded-md shadow-sm sm:text-sm print:border-none print:w-auto print:text-xs ${item.qtd > 0 ? 'text-blue-600 font-bold' : 'text-gray-400 font-bold'} ${isEditing ? 'border-gray-300 focus:ring-blue-500 focus:border-blue-500 bg-gray-50' : 'border-transparent bg-transparent cursor-default'}`} value={item.qtd || ''} onChange={(e) => onUpdate(category, item.nome, 'qtd', e.target.value)} />
                                                         )}
                                                     </td>
+                                                    {isPrintSheetMode === 'with-expected' && (
+                                                        <td className="px-2 py-2 text-center font-bold print:px-1 print:py-1 whitespace-nowrap print:border-black border border-slate-300">
+                                                            {expectedStock}
+                                                        </td>
+                                                    )}
                                                     {!isPrintSheetMode && (
                                                         <>
                                                             <td className="px-4 py-3 text-center text-gray-500">R$ {unitValue.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
@@ -498,8 +550,12 @@
                                                     </div>
                                                 )}
                                             </td>
-                                            <td className="px-2 py-2 text-center bg-blue-50/30 print:bg-transparent print:p-0"><input type="number" min="0" placeholder="0" disabled={!isEditing} className={`w-20 text-center rounded-md shadow-sm sm:text-sm print:border-none print:w-full print:h-full print:text-xs ${isEditing ? 'border-gray-300 focus:ring-blue-500 focus:border-blue-500 bg-white' : 'border-transparent bg-transparent cursor-default font-bold'}`} value={flow.entry || ''} onChange={(e) => onFlowUpdate(category, item.nome, 'entry', e.target.value)} /></td>
-                                            <td className="px-2 py-2 text-center bg-red-50/30 print:bg-transparent print:p-0"><input type="number" min="0" placeholder="0" disabled={!isEditing} className={`w-20 text-center rounded-md shadow-sm sm:text-sm print:border-none print:w-full print:h-full print:text-xs ${isEditing ? 'border-gray-300 focus:ring-red-500 focus:border-red-500 bg-white' : 'border-transparent bg-transparent cursor-default font-bold'}`} value={flow.exit || ''} onChange={(e) => onFlowUpdate(category, item.nome, 'exit', e.target.value)} /></td>
+                                            <td className="px-2 py-2 text-center bg-blue-50/30 print:bg-transparent print:p-0">
+                                                <input type="number" min="0" placeholder="0" disabled={true} className={`w-20 text-center rounded-md shadow-sm sm:text-sm print:border-none print:w-full print:h-full print:text-xs border-transparent bg-transparent cursor-default font-bold text-slate-600`} value={flow.entry || ''} onChange={() => {}} />
+                                            </td>
+                                            <td className="px-2 py-2 text-center bg-red-50/30 print:bg-transparent print:p-0">
+                                                <input type="number" min="0" placeholder="0" disabled={true} className={`w-20 text-center rounded-md shadow-sm sm:text-sm print:border-none print:w-full print:h-full print:text-xs border-transparent bg-transparent cursor-default font-bold text-slate-600`} value={flow.exit || ''} onChange={() => {}} />
+                                            </td>
                                             <td className="px-4 py-3 text-center font-bold text-gray-500 bg-gray-50 print:bg-transparent print:px-1 print:py-1">{expected.toLocaleString('pt-BR')}</td>
                                             <td className="px-4 py-3 text-center font-bold text-blue-600 bg-gray-100 border-l border-r border-gray-200 print:bg-transparent print:px-1 print:py-1">{countedTotal.toLocaleString('pt-BR')}</td>
                                             <td className={`px-4 py-3 text-center print:px-1 print:py-1 ${divColor}`}>{divergence > 0 ? `+${divergence.toLocaleString('pt-BR')}` : divergence.toLocaleString('pt-BR')}</td>
@@ -560,15 +616,16 @@
 
     <!-- LOAD COMPONENTS SEQUENTIALLY -->
     <script type="text/babel" src="components/LoginModal.js"></script>
-    <script type="text/babel" src="components/CreateCountModal.js"></script>
+    <script type="text/babel" src="components/CreateCountModal.js?v=2"></script>
     <script type="text/babel" src="components/Buttons.js"></script>
     <script type="text/babel" src="components/AnalyzedProductsModal.js"></script>
     <script type="text/babel" src="components/EvolutionReport.js"></script>
     <script type="text/babel" src="components/ProductCatalog.js"></script>
     <script type="text/babel" src="components/CategoryManager.js"></script>
     <script type="text/babel" src="components/ErrorBoundary.js"></script>
-    <script type="text/babel" src="components/InventoryIntelligence.js"></script>
-    <script type="text/babel" src="components/App.js"></script>
+    <script type="text/babel" src="components/InventoryIntelligence.js?v=2"></script>
+    <script type="text/babel" src="components/MovementsMatrix.js"></script>
+    <script type="text/babel" src="components/App.js?v=6"></script>
 
     <script type="text/babel">
         const renderApp = () => {

@@ -1,4 +1,4 @@
-        const CreateCountModal = ({ isOpen, onClose, onCreate, productCatalog = {}, categories = [], dynamicMasterList = {} }) => {
+        const CreateCountModal = ({ isOpen, onClose, onCreate, productCatalog = {}, categories = [], dynamicMasterList = {}, dataSets = {}, stockFlow = {}, selectedLocation = '' }) => {
             const [date, setDate] = useState('');
             const [time, setTime] = useState('');
             const [responsible, setResponsible] = useState('');
@@ -23,6 +23,76 @@
                     setShowConfirm(false);
                 }
             }, [isOpen]);
+
+            // Function to select products with recent movements
+            const selectRecentMovements = () => {
+                const { getDatesForLocation, getDatasetKey } = window;
+                if (!getDatesForLocation || !getDatasetKey) return;
+
+                const sortDates = (dates) => [...dates].sort((a, b) => {
+                    const [d1, m1] = a.split('/').map(Number);
+                    const [d2, m2] = b.split('/').map(Number);
+                    return new Date(new Date().getFullYear(), m1-1, d1) - new Date(new Date().getFullYear(), m2-1, d2);
+                });
+
+                if (!date) {
+                    alert("Por favor, selecione a data da contagem primeiro.");
+                    return;
+                }
+
+                const [y, m, dPart] = date.split('-');
+                const currentDateObj = new Date(parseInt(y), parseInt(m)-1, parseInt(dPart));
+
+                const isProductInLocation = (pName) => {
+                    return categories.some(cat => (dynamicMasterList[cat.id] || []).includes(pName));
+                };
+
+                const datasetDates = sortDates(getDatesForLocation(selectedLocation, dataSets));
+                
+                const globalBaseDateStr = datasetDates.reduce((found, dStr) => {
+                    const [dd, mm] = dStr.split('/').map(Number);
+                    const dObj = new Date(new Date().getFullYear(), mm-1, dd);
+                    return dObj < currentDateObj ? dStr : found;
+                }, null);
+
+                const baseDateObj = globalBaseDateStr ? (() => { 
+                    const [dd, mm] = globalBaseDateStr.split('/').map(Number); 
+                    return new Date(new Date().getFullYear(), mm-1, dd); 
+                })() : null;
+
+                const autoSelected = new Set();
+                let start = baseDateObj ? new Date(baseDateObj) : new Date(currentDateObj);
+                const end = new Date(currentDateObj);
+
+                for (let dt = new Date(start); dt <= end; dt.setDate(dt.getDate() + 1)) {
+                    const dStr = `${String(dt.getDate()).padStart(2, '0')}/${String(dt.getMonth() + 1).padStart(2, '0')}`;
+                    const flowKey = getDatasetKey(selectedLocation, dStr, 'diaria');
+                    const flowData = stockFlow[flowKey];
+                    if (flowData) {
+                        categories.forEach(cat => {
+                            if (flowData[cat.id]) {
+                                Object.entries(flowData[cat.id]).forEach(([pName, pFlow]) => {
+                                    if (parseInt(pFlow.entry) > 0 || parseInt(pFlow.exit) > 0) {
+                                        if (isProductInLocation(pName)) {
+                                            autoSelected.add(pName);
+                                        }
+                                    }
+                                });
+                            }
+                        });
+                    }
+                }
+
+                if (autoSelected.size > 0) {
+                    setSelectedProducts(prev => {
+                        const newSet = new Set([...prev, ...autoSelected]);
+                        return Array.from(newSet);
+                    });
+                    alert(`${autoSelected.size} produtos com movimentação recente foram selecionados!`);
+                } else {
+                    alert("Nenhuma movimentação encontrada entre a última contagem e a data selecionada.");
+                }
+            };
 
             if (!isOpen) return null;
 
@@ -333,10 +403,18 @@
                                         </div>
 
                                         {/* Action buttons */}
+                                        <div className="flex gap-2 mb-4">
+                                            <button type="button" onClick={selectAll} className="flex-1 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-lg text-sm transition-colors">
+                                                Selecionar Visíveis
+                                            </button>
+                                            <button type="button" onClick={clearAll} className="flex-1 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-lg text-sm transition-colors">
+                                                Limpar Tudo
+                                            </button>
+                                            <button type="button" onClick={selectRecentMovements} className="flex-1 px-3 py-2 bg-blue-100 hover:bg-blue-200 text-blue-700 font-bold rounded-lg text-sm transition-colors">
+                                                Auto: Últimas Movimentações
+                                            </button>
+                                        </div>
                                         <div className="flex gap-2 mb-2 flex-wrap items-center">
-                                            <button type="button" onClick={selectAll} className="text-xs font-bold text-blue-600 hover:text-blue-800 px-2 py-1 rounded-lg hover:bg-blue-50 transition-colors">Selecionar visíveis</button>
-                                            <button type="button" onClick={clearAll} className="text-xs font-bold text-slate-500 hover:text-red-600 px-2 py-1 rounded-lg hover:bg-red-50 transition-colors">Limpar seleção</button>
-                                            <div className="w-px h-4 bg-slate-300 mx-1"></div>
                                             <button type="button" onClick={() => fileInputRef.current?.click()} className="text-xs font-bold text-[#00a86b] hover:text-[#008f5a] px-2 py-1 rounded-lg hover:bg-green-50 transition-colors flex items-center gap-1">
                                                 <Upload size={12} /> Importar Excel
                                             </button>

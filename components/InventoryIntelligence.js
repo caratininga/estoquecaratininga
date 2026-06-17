@@ -1,8 +1,6 @@
-const { useState, useEffect, useMemo } = window.React;
-const { Activity, AlertTriangle, CheckCircle, Package, TrendingUp, Clock, Filter, AlertCircle, X } = window;
-const { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } = window;
-
 const InventoryIntelligence = ({ dataSets, stockFlow, selectedLocation, categories, catalog }) => {
+    const { useState, useEffect, useMemo } = window.React || window;
+    const { Activity, AlertTriangle, CheckCircle, Package, TrendingUp, Clock, Filter, AlertCircle, X, PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } = window;
     const [periodDays, setPeriodDays] = useState(30);
     const [hideZeros, setHideZeros] = useState(() => {
         const cached = localStorage.getItem('estoque_hideZeros_inteligencia');
