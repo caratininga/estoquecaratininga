@@ -629,13 +629,13 @@
 
     <script type="text/babel">
         const renderApp = () => {
-            if (!window.ReactDOM || !window.ReactDOM.createRoot) {
-                // ReactDOM not yet ready, wait for deps-ready event
-                window.addEventListener('deps-ready', renderApp, { once: true });
+            if (!window.ReactDOM || !window.ReactDOM.createRoot || typeof window.App === 'undefined') {
+                // ReactDOM or App not yet ready, wait a bit and try again
+                setTimeout(renderApp, 50);
                 return;
             }
             const root = window.ReactDOM.createRoot(document.getElementById('root'));
-            root.render(<App />);
+            root.render(<window.App />);
         };
 
         // Fire when both Firebase and deps are ready
@@ -645,8 +645,7 @@
             window.addEventListener('deps-ready', renderApp, { once: true });
         } else {
             window.addEventListener('firebase-ready', () => {
-                if (window.ReactDOM && window.ReactDOM.createRoot) renderApp();
-                else window.addEventListener('deps-ready', renderApp, { once: true });
+                renderApp();
             }, { once: true });
         }
     </script>
