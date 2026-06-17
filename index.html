@@ -448,7 +448,7 @@
             );
         };
 
-        const ControlSection = ({ title, data, category, stockFlowData, previousStockData, previousDateMap, onFlowUpdate, previousDateLabel, catalog = {}, type = "grid", isEditing = false, selectedLocation, currentDate, hideZeroProducts = false, printMode = 'full' }) => {
+        const ControlSection = ({ title, data, category, stockFlowData, previousStockData, previousDateMap, onFlowUpdate, previousDateLabel, catalog = {}, type = "grid", isEditing = false, selectedLocation, currentDate, hideZeroProducts = false, printMode = 'full', hasData = true }) => {
             const [sortConfig, setSortConfig] = window.React.useState({ key: 'nome', direction: 'asc' });
             
             const filteredData = React.useMemo(() => {
@@ -531,8 +531,8 @@
                                     const flow = stockFlowData?.[item.nome] || { entry: 0, exit: 0 };
                                     const prevStock = previousStockData?.[item.nome] || 0;
                                     const expected = (prevStock + (flow.entry || 0)) - (flow.exit || 0);
-                                    const divergence = countedTotal - expected;
-                                    const divColor = divergence < 0 ? "text-red-600 font-bold bg-red-50 print:bg-transparent" : divergence > 0 ? "text-blue-600 font-bold bg-blue-50 print:bg-transparent" : "text-gray-400";
+                                    const divergence = hasData ? (countedTotal - expected) : null;
+                                    const divColor = divergence === null ? "text-gray-400" : divergence < 0 ? "text-red-600 font-bold bg-red-50 print:bg-transparent" : divergence > 0 ? "text-blue-600 font-bold bg-blue-50 print:bg-transparent" : "text-gray-400";
                                     const displayCode = catalog[item.nome]?.code || item.code || '-';
                                     const unitValue = catalog[item.nome]?.unitValues?.[selectedLocation] || 0;
 
@@ -557,11 +557,11 @@
                                                 <input type="number" min="0" placeholder="0" disabled={true} className={`w-20 text-center rounded-md shadow-sm sm:text-sm print:border-none print:w-full print:h-full print:text-xs border-transparent bg-transparent cursor-default font-bold text-slate-600`} value={flow.exit || ''} onChange={() => {}} />
                                             </td>
                                             <td className="px-4 py-3 text-center font-bold text-gray-500 bg-gray-50 print:bg-transparent print:px-1 print:py-1">{expected.toLocaleString('pt-BR')}</td>
-                                            <td className="px-4 py-3 text-center font-bold text-blue-600 bg-gray-100 border-l border-r border-gray-200 print:bg-transparent print:px-1 print:py-1">{countedTotal.toLocaleString('pt-BR')}</td>
-                                            <td className={`px-4 py-3 text-center print:px-1 print:py-1 ${divColor}`}>{divergence > 0 ? `+${divergence.toLocaleString('pt-BR')}` : divergence.toLocaleString('pt-BR')}</td>
+                                            <td className="px-4 py-3 text-center font-bold text-blue-600 bg-gray-100 border-l border-r border-gray-200 print:bg-transparent print:px-1 print:py-1">{hasData ? countedTotal.toLocaleString('pt-BR') : '-'}</td>
+                                            <td className={`px-4 py-3 text-center print:px-1 print:py-1 ${divColor}`}>{divergence !== null ? (divergence > 0 ? `+${divergence.toLocaleString('pt-BR')}` : divergence.toLocaleString('pt-BR')) : '-'}</td>
                                             <td className="px-4 py-3 text-center text-gray-500">R$ {unitValue.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
-                                            <td className={`px-4 py-3 text-center font-bold bg-gray-50 ${countedTotal === 0 ? 'text-gray-400' : 'text-slate-700'}`}>R$ {(countedTotal * unitValue).toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
-                                            <td className={`px-4 py-3 text-center font-bold bg-gray-50 border-l border-gray-100 ${divergence !== 0 ? divColor : 'text-gray-400'}`}>{divergence !== 0 ? (divergence > 0 ? '+ ' : '- ') : ''}R$ {Math.abs(divergence * unitValue).toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                                            <td className={`px-4 py-3 text-center font-bold bg-gray-50 ${(!hasData || countedTotal === 0) ? 'text-gray-400' : 'text-slate-700'}`}>{hasData ? `R$ ${(countedTotal * unitValue).toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}` : '-'}</td>
+                                            <td className={`px-4 py-3 text-center font-bold bg-gray-50 border-l border-gray-100 ${divergence !== null && divergence !== 0 ? divColor : 'text-gray-400'}`}>{divergence !== null ? (divergence !== 0 ? (divergence > 0 ? '+ ' : '- ') + `R$ ${Math.abs(divergence * unitValue).toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}` : `R$ 0,00`) : '-'}</td>
                                         </tr>
                                     );
                                 })}
@@ -578,23 +578,25 @@
                                         const flow = stockFlowData?.[item.nome] || { entry: 0, exit: 0 };
                                         const prevStock = previousStockData?.[item.nome] || 0;
                                         const expected = (prevStock + (flow.entry || 0)) - (flow.exit || 0);
-                                        const divergence = countedTotal - expected;
+                                        const divergence = hasData ? (countedTotal - expected) : null;
                                         const unitValue = catalog[item.nome]?.unitValues?.[selectedLocation] || 0;
 
-                                        totalCounted += countedTotal;
-                                        totalDivergence += divergence;
-                                        totalValueCounted += (countedTotal * unitValue);
-                                        totalValueDiv += (divergence * unitValue);
+                                        if (hasData) {
+                                            totalCounted += countedTotal;
+                                            totalDivergence += divergence;
+                                            totalValueCounted += (countedTotal * unitValue);
+                                            totalValueDiv += (divergence * unitValue);
+                                        }
                                     });
 
                                     return (
                                         <tr>
                                             <td colSpan="6" className="px-4 py-4 text-right">Total da Categoria:</td>
-                                            <td className="px-4 py-4 text-center text-blue-700">{totalCounted.toLocaleString('pt-BR')}</td>
-                                            <td className={`px-4 py-4 text-center ${totalDivergence > 0 ? 'text-blue-700' : totalDivergence < 0 ? 'text-red-700' : 'text-slate-500'}`}>{totalDivergence > 0 ? `+${totalDivergence.toLocaleString('pt-BR')}` : totalDivergence.toLocaleString('pt-BR')}</td>
+                                            <td className="px-4 py-4 text-center text-blue-700">{hasData ? totalCounted.toLocaleString('pt-BR') : '-'}</td>
+                                            <td className={`px-4 py-4 text-center ${totalDivergence > 0 ? 'text-blue-700' : totalDivergence < 0 ? 'text-red-700' : 'text-slate-500'}`}>{hasData ? (totalDivergence > 0 ? `+${totalDivergence.toLocaleString('pt-BR')}` : totalDivergence.toLocaleString('pt-BR')) : '-'}</td>
                                             <td className="px-4 py-4 text-center text-slate-400">-</td>
-                                            <td className="px-4 py-4 text-center text-slate-800">R$ {totalValueCounted.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
-                                            <td className={`px-4 py-4 text-center ${totalValueDiv > 0 ? 'text-blue-700' : totalValueDiv < 0 ? 'text-red-700' : 'text-slate-500'}`}>{totalValueDiv !== 0 ? (totalValueDiv > 0 ? '+ ' : '- ') : ''}R$ {Math.abs(totalValueDiv).toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                                            <td className="px-4 py-4 text-center text-slate-800">{hasData ? `R$ ${totalValueCounted.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}` : '-'}</td>
+                                            <td className={`px-4 py-4 text-center ${totalValueDiv > 0 ? 'text-blue-700' : totalValueDiv < 0 ? 'text-red-700' : 'text-slate-500'}`}>{hasData ? (totalValueDiv !== 0 ? (totalValueDiv > 0 ? '+ ' : '- ') + `R$ ${Math.abs(totalValueDiv).toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}` : `R$ 0,00`) : '-'}</td>
                                         </tr>
                                     );
                                 })()}

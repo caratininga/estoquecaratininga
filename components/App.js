@@ -1191,6 +1191,8 @@
                 );
             }
 
+            const hasData = !!dataSets[currentKey];
+
             return (
                 <div className="flex h-screen bg-[#f8fafc] font-sans text-slate-800 overflow-hidden print:h-auto print:bg-white print:block">
                     <CreateCountModal 
@@ -1616,22 +1618,22 @@
                                             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                                                 <div className="bg-slate-50 p-4 rounded-lg border border-slate-200 text-center print:bg-transparent print:p-2">
                                                     <p className="text-xs font-bold text-slate-500 uppercase print:text-[10px]">Soma Contagem (Un)</p>
-                                                    <p className="text-2xl font-bold text-blue-700 print:text-lg">{totalItemsContados.toLocaleString('pt-BR')}</p>
+                                                    <p className="text-2xl font-bold text-blue-700 print:text-lg">{hasData ? totalItemsContados.toLocaleString('pt-BR') : '-'}</p>
                                                 </div>
                                                 <div className="bg-slate-50 p-4 rounded-lg border border-slate-200 text-center print:bg-transparent print:p-2">
                                                     <p className="text-xs font-bold text-slate-500 uppercase print:text-[10px]">Valor Total (Contagem)</p>
-                                                    <p className="text-2xl font-bold text-slate-800 print:text-lg">R$ {valorTotalContado.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</p>
+                                                    <p className="text-2xl font-bold text-slate-800 print:text-lg">{hasData ? `R$ ${valorTotalContado.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}` : '-'}</p>
                                                 </div>
                                                 <div className="bg-slate-50 p-4 rounded-lg border border-slate-200 text-center print:bg-transparent print:p-2">
                                                     <p className="text-xs font-bold text-slate-500 uppercase print:text-[10px]">Soma Divergência (Un)</p>
-                                                    <p className={`text-2xl font-bold print:text-lg ${totalUnidadesDivergenciaNet > 0 ? 'text-blue-600' : totalUnidadesDivergenciaNet < 0 ? 'text-red-600' : 'text-slate-600'}`}>
-                                                        {totalUnidadesDivergenciaNet > 0 ? `+${totalUnidadesDivergenciaNet.toLocaleString('pt-BR')}` : totalUnidadesDivergenciaNet.toLocaleString('pt-BR')}
+                                                    <p className={`text-2xl font-bold print:text-lg ${hasData ? (totalUnidadesDivergenciaNet > 0 ? 'text-blue-600' : totalUnidadesDivergenciaNet < 0 ? 'text-red-600' : 'text-slate-600') : 'text-slate-400'}`}>
+                                                        {hasData ? (totalUnidadesDivergenciaNet > 0 ? `+${totalUnidadesDivergenciaNet.toLocaleString('pt-BR')}` : totalUnidadesDivergenciaNet.toLocaleString('pt-BR')) : '-'}
                                                     </p>
                                                 </div>
                                                 <div className="bg-slate-50 p-4 rounded-lg border border-slate-200 text-center print:bg-transparent print:p-2">
                                                     <p className="text-xs font-bold text-slate-500 uppercase print:text-[10px]">Valor Total (Divergência)</p>
-                                                    <p className={`text-2xl font-bold print:text-lg ${totalValorDivergenciaNet > 0 ? 'text-blue-600' : totalValorDivergenciaNet < 0 ? 'text-red-600' : 'text-slate-600'}`}>
-                                                        {totalValorDivergenciaNet !== 0 ? (totalValorDivergenciaNet > 0 ? '+ ' : '- ') : ''}R$ {Math.abs(totalValorDivergenciaNet).toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}
+                                                    <p className={`text-2xl font-bold print:text-lg ${hasData ? (totalValorDivergenciaNet > 0 ? 'text-blue-600' : totalValorDivergenciaNet < 0 ? 'text-red-600' : 'text-slate-600') : 'text-slate-400'}`}>
+                                                        {hasData ? (totalValorDivergenciaNet !== 0 ? (totalValorDivergenciaNet > 0 ? '+ ' : '- ') + `R$ ${Math.abs(totalValorDivergenciaNet).toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}` : 'R$ 0,00') : '-'}
                                                     </p>
                                                 </div>
                                             </div>
@@ -1655,6 +1657,7 @@
                                                 isDailyCount={isDailyCount}
                                                 hideZeroProducts={hideZeroProducts}
                                                 printMode={printMode}
+                                                hasData={hasData}
                                             />
                                         ))}
                                     </>
