@@ -267,10 +267,19 @@
             const keys = Object.keys(dataSets).filter(k => k.startsWith(prefix));
             const datesSet = new Set();
             keys.forEach(k => {
-                // Remove prefix, then remove _diaria suffix if present
-                let datePart = k.replace(prefix + '_', '');
-                if (datePart.endsWith('_diaria')) datePart = datePart.slice(0, -7);
-                datesSet.add(datePart.replace('_', '/'));
+                const dataSet = dataSets[k];
+                // Verifica se tem algum dado real contado (ignorando datasets vazios gerados apenas para fluxo)
+                const hasRealData = Object.keys(dataSet).some(cat => 
+                    Array.isArray(dataSet[cat]) && dataSet[cat].length > 0 && 
+                    dataSet[cat].some(p => p.l1 || p.l2 || p.l3 || p.l4 || p.qtd)
+                );
+
+                if (hasRealData) {
+                    let datePart = k.replace(prefix + '_', '');
+                    if (datePart.endsWith('_diaria')) datePart = datePart.slice(0, -7);
+                    if (datePart.endsWith('_semanal')) datePart = datePart.slice(0, -8);
+                    datesSet.add(datePart.replace('_', '/'));
+                }
             });
             
             return Array.from(datesSet).sort((a, b) => {
