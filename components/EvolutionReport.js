@@ -1,4 +1,4 @@
-        const EvolutionReport = ({ data, flowData, previousData, dataSets, stockFlow, selectedLocation, getPreviousStockValues, getLastWeeklyStockBase, categories, catalog, selectedDate }) => {
+        const EvolutionReport = ({ data, flowData, previousData, dataSets, stockFlow, selectedLocation, getPreviousStockValues, getAccumulatedFlow, getLastWeeklyStockBase, isDailyCount, categories, catalog, selectedDate }) => {
             const [isListModalOpen, setIsListModalOpen] = useState(false);
             const [historyMode, setHistoryMode] = useState('semanal'); // 'semanal' or 'diaria'
             const [selectedMonth, setSelectedMonth] = useState(() => {
@@ -84,7 +84,10 @@
                     const isGrid = cat.type === 'grid';
                     const countedTotal = isGrid ? ((parseInt(item.l1)||0) + (parseInt(item.l2)||0) + (parseInt(item.l3)||0) + (parseInt(item.l4)||0)) : (parseInt(item.qtd)||0);
                     
-                    const flow = flowData?.[cat.id]?.[item.nome] || { entry: 0, exit: 0 };
+                    const wasCounted = item.l1 !== 0 || item.l2 !== 0 || item.l3 !== 0 || item.l4 !== 0 || item.qtd !== 0;
+                    if (isDailyCount && !wasCounted) return;
+                    
+                    const flow = flowData?.[item.nome] || { entry: 0, exit: 0 };
                     const prevStock = previousData?.[item.nome] || 0;
                     
                     const expected = (prevStock + (parseInt(flow.entry)||0)) - (parseInt(flow.exit)||0);
@@ -168,9 +171,12 @@
                     const dateStr = `${dd}/${mmStr}`;
 
                     const dateData = dataSets[key] || {};
-                    const dateFlow = stockFlow[key] || {};
                     const prevResult = getPreviousStockValues(selectedLocation, dateStr, dataSets, isDailyKey);
                     const prevMap = prevResult ? prevResult.stockMap : {};
+                    const prevDateMap = prevResult ? prevResult.dateMap : {};
+
+                    // Accumulate flow from previous stock dates to the current dateStr
+                    const accFlow = getAccumulatedFlow ? getAccumulatedFlow(selectedLocation, prevDateMap, dateStr, dataSets, stockFlow) : {};
 
                     categories.forEach(cat => {
                         const itemList = dateData[cat.id];
@@ -180,9 +186,10 @@
                             const counted = isGrid
                                 ? ((parseInt(item.l1)||0)+(parseInt(item.l2)||0)+(parseInt(item.l3)||0)+(parseInt(item.l4)||0))
                                 : (parseInt(item.qtd)||0);
-                            const flow = dateFlow?.[cat.id]?.[item.nome] || { entry: 0, exit: 0 };
+                            
+                            const flowObj = accFlow[item.nome] || { entry: 0, exit: 0 };
                             const prev = prevMap?.[item.nome] || 0;
-                            const expected = (prev + (parseInt(flow.entry)||0)) - (parseInt(flow.exit)||0);
+                            const expected = (prev + (parseInt(flowObj.entry)||0)) - (parseInt(flowObj.exit)||0);
                             const div = counted - expected;
                             if (div === 0) return;
                             if (!productDivMap[item.nome]) productDivMap[item.nome] = { nome: item.nome, categoria: cat.name, positive: 0, negative: 0, occurrences: 0 };
@@ -226,9 +233,12 @@
                     const suffix = isDailyMode ? '_diaria' : '';
                     const key = `${locKey}_${dateStrKey}${suffix}`;
                     const dateData = dataSets[key] || {};
-                    const dateFlow = stockFlow[key] || {};
                     const prevStockResult = getPreviousStockValues(selectedLocation, dateStr, dataSets, isDailyMode);
                     const prevStockMap = prevStockResult ? prevStockResult.stockMap : {};
+                    const prevDateMap = prevStockResult ? prevStockResult.dateMap : {};
+
+                    // Accumulate flow from previous stock dates to the current dateStr
+                    const accFlow = getAccumulatedFlow ? getAccumulatedFlow(selectedLocation, prevDateMap, dateStr, dataSets, stockFlow) : {};
                     
                     let dateDivUnits = 0;
                     let dateTotalItems = 0;
@@ -244,10 +254,13 @@
                             const isGrid = cat.type === 'grid';
                             const countedTotal = isGrid ? ((parseInt(item.l1)||0) + (parseInt(item.l2)||0) + (parseInt(item.l3)||0) + (parseInt(item.l4)||0)) : (parseInt(item.qtd)||0);
                             
-                            const flow = dateFlow?.[cat.id]?.[item.nome] || { entry: 0, exit: 0 };
+                            const wasCounted = item.l1 !== 0 || item.l2 !== 0 || item.l3 !== 0 || item.l4 !== 0 || item.qtd !== 0;
+                            if (isDailyMode && !wasCounted) return;
+                            
+                            const flowObj = accFlow[item.nome] || { entry: 0, exit: 0 };
                             const prevStockVal = prevStockMap?.[item.nome] || 0;
                             
-                            const expected = (prevStockVal + parseInt(flow.entry || 0)) - parseInt(flow.exit || 0);
+                            const expected = (prevStockVal + parseInt(flowObj.entry || 0)) - parseInt(flowObj.exit || 0);
                             const divergence = countedTotal - expected;
                             
                             if (expected === 0 && countedTotal === 0) return;

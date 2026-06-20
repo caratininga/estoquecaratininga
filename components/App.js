@@ -601,24 +601,23 @@
                 for (let i = currentIndex - 1; i >= 0; i--) {
                     const prevDate = allDates[i];
                     
-                    if (isCurrentDaily) {
-                        const dailyKey = getDatasetKey(location, prevDate, 'diaria');
-                        const candidateDaily = allDataSets[dailyKey];
-                        if (candidateDaily) {
-                            categories.forEach(cat => {
-                                if (candidateDaily[cat.id]) {
-                                    candidateDaily[cat.id].forEach(item => {
-                                        if (stockMap[item.nome] === undefined) {
-                                            const total = cat.type === 'grid' 
-                                                ? ((parseInt(item.l1)||0) + (parseInt(item.l2)||0) + (parseInt(item.l3)||0) + (parseInt(item.l4)||0))
-                                                : (parseInt(item.qtd)||0);
-                                            stockMap[item.nome] = total;
-                                            dateMap[item.nome] = `${prevDate} (D)`;
-                                        }
-                                    });
-                                }
-                            });
-                        }
+                    const dailyKey = getDatasetKey(location, prevDate, 'diaria');
+                    const candidateDaily = allDataSets[dailyKey];
+                    if (candidateDaily) {
+                        categories.forEach(cat => {
+                            if (candidateDaily[cat.id]) {
+                                candidateDaily[cat.id].forEach(item => {
+                                    const wasCounted = item.l1 !== 0 || item.l2 !== 0 || item.l3 !== 0 || item.l4 !== 0 || item.qtd !== 0;
+                                    if (wasCounted && stockMap[item.nome] === undefined) {
+                                        const total = cat.type === 'grid' 
+                                            ? ((parseInt(item.l1)||0) + (parseInt(item.l2)||0) + (parseInt(item.l3)||0) + (parseInt(item.l4)||0))
+                                            : (parseInt(item.qtd)||0);
+                                        stockMap[item.nome] = total;
+                                        dateMap[item.nome] = `${prevDate} (D)`;
+                                    }
+                                });
+                            }
+                        });
                     }
 
                     const weeklyKey = getDatasetKey(location, prevDate, 'semanal');
@@ -1561,13 +1560,15 @@
                                 ) : viewMode === 'evolution' ? (
                                     <EvolutionReport 
                                         data={currentData} 
-                                        flowData={currentFlowData} 
+                                        flowData={effectiveFlowData} 
                                         previousData={previousStockData} 
                                         dataSets={dataSets} 
                                         stockFlow={stockFlow} 
                                         selectedLocation={selectedLocation} 
                                         getPreviousStockValues={getPreviousStockValues}
+                                        getAccumulatedFlow={getAccumulatedFlow}
                                         getLastWeeklyStockBase={getLastWeeklyStockBase}
+                                        isDailyCount={isDailyCount}
                                         categories={categories}
                                         catalog={productCatalog}
                                         selectedDate={selectedDate}
