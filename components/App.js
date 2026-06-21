@@ -1353,15 +1353,8 @@
                                 </div>
                             </div>
                             
-                            {/* Alert Banner */}
-                            {(viewMode === 'control') && (
-                                <div className="mt-4 flex items-center gap-2 text-sm text-[#003d33] bg-[#00a86b]/10 p-3 rounded-lg border border-[#00a86b]/20">
-                                    <AlertCircle size={16} className="shrink-0" />
-                                    <p>Selecione o período ou clique em <strong>"Modo Edição"</strong> para exibir e alterar os valores corretamente.</p>
-                                </div>
-                            )}
                             {/* Count type toggle — shown when both weekly and daily exist for this date */}
-                            {hasBothTypes && viewMode === 'control' && (
+                            {hasBothTypes && (viewMode === 'control' || viewMode === 'counting') && (
                                 <div className="mt-3 flex items-center gap-2">
                                     <span className="text-xs font-bold text-slate-500 uppercase tracking-wide shrink-0">Visualizando:</span>
                                     <div className="flex bg-slate-100 rounded-lg p-1 gap-1">
@@ -1382,7 +1375,7 @@
                                 </div>
                             )}
                             {/* Daily Count Banner */}
-                            {isDailyCount && viewMode === 'control' && (
+                            {isDailyCount && (viewMode === 'control' || viewMode === 'counting') && (
                                 <div className="mt-3 flex items-center gap-3 text-sm text-blue-800 bg-blue-50 p-3 rounded-lg border border-blue-200">
                                     <Calendar size={16} className="shrink-0 text-blue-600" />
                                     <div>
