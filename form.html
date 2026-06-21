@@ -271,7 +271,7 @@
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
     import { getFirestore, doc, getDoc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
-    import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+    import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 
     const firebaseConfig = {
         apiKey: "AIzaSyB9p4COfv1T1DS4CV-MvGfBuGGoWA7mk98",
@@ -288,10 +288,17 @@
     window._db = db;
     window._fs = { doc, getDoc, setDoc, onSnapshot };
 
-    try { await signInAnonymously(auth); }
-    catch(e) { console.warn('Auth anônima falhou:', e.message); }
-
-    window.dispatchEvent(new Event('firebase-ready'));
+    let isAuthHandled = false;
+    onAuthStateChanged(auth, async (user) => {
+        if (!user && !isAuthHandled) {
+            isAuthHandled = true;
+            try { await signInAnonymously(auth); }
+            catch(e) { console.warn('Auth anônima falhou:', e.message); }
+        } else if (!isAuthHandled) {
+            isAuthHandled = true;
+        }
+        window.dispatchEvent(new Event('firebase-ready'));
+    });
 </script>
 
 <script>
