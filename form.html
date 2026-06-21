@@ -492,12 +492,6 @@
                         <th>Loc ${window.currentCol}</th>
                         <th class="th-total">Acumulado</th>
                     </tr>`;
-                } else if (window.currentMode === 3) {
-                    thead = `<tr>
-                        <th class="th-name">Produto</th>
-                        ${window.showExpected ? '<th class="th-prev">Teórico</th>' : ''}
-                        <th class="th-total">Total Direto</th>
-                    </tr>`;
                 }
             } else {
                 thead = `<tr>
@@ -525,18 +519,14 @@
                     if (window.currentMode === 1) {
                         const inp = ['l1','l2','l3','l4'].map(f => {
                             const v = parseInt(item[f]) || 0;
-                            return `<td><input class="num${v>0?' filled':''}" type="number" min="0" value="${v}" oninput="setVal('${cat.id}','${safeName}','${f}',this.value,this)" onchange="setVal('${cat.id}','${safeName}','${f}',this.value,this)"/></td>`;
+                            return `<td><input class="num${v>0?' filled':''}" type="number" min="0" value="${v===0?'':v}" oninput="setVal('${cat.id}','${safeName}','${f}',this.value,this)" onchange="setVal('${cat.id}','${safeName}','${f}',this.value,this)"/></td>`;
                         }).join('');
                         rowHtml += inp + `<td class="td-total${isZ?' zero-val':''}" id="tot_${safeId}">${tot}</td>`;
                     } else if (window.currentMode === 2) {
                         const f = `l${window.currentCol}`;
                         const v = parseInt(item[f]) || 0;
-                        const inp = `<td><input class="num${v>0?' filled':''}" type="number" min="0" value="${v}" oninput="setVal('${cat.id}','${safeName}','${f}',this.value,this)" onchange="setVal('${cat.id}','${safeName}','${f}',this.value,this)"/></td>`;
+                        const inp = `<td><input class="num${v>0?' filled':''}" type="number" min="0" value="${v===0?'':v}" oninput="setVal('${cat.id}','${safeName}','${f}',this.value,this)" onchange="setVal('${cat.id}','${safeName}','${f}',this.value,this)"/></td>`;
                         rowHtml += inp + `<td class="td-total${isZ?' zero-val':''}" id="tot_${safeId}">${tot}</td>`;
-                    } else if (window.currentMode === 3) {
-                        // Modo 3 salva o total direto no l1
-                        const inp = `<td class="td-total${tot===0?' zero-val':''}"><input class="num qty${tot>0?' filled':''}" type="number" min="0" value="${tot}" oninput="setVal('${cat.id}','${safeName}','l1',this.value,this)" onchange="setVal('${cat.id}','${safeName}','l1',this.value,this)"/></td>`;
-                        rowHtml += inp;
                     }
 
                     return `<tr class="${isZ ? 'zero' : ''}">${rowHtml}</tr>`;
@@ -550,7 +540,7 @@
                         ${prevHtml}
                         <td class="td-total${isZ?' zero-val':''}">
                             <input class="num qty${v>0?' filled':''}" type="number" min="0"
-                                value="${v}"
+                                value="${v===0?'':v}"
                                 oninput="setVal('${cat.id}','${safeName}','qtd',this.value,this)"
                                 onchange="setVal('${cat.id}','${safeName}','qtd',this.value,this)"/>
                         </td>
@@ -655,7 +645,6 @@
             <div class="mode-switcher" id="mode-switcher">
                 <button class="mode-btn active" onclick="setMode(1)">Padrão (4 Colunas)</button>
                 <button class="mode-btn" onclick="setMode(2)">Sequencial</button>
-                <button class="mode-btn" onclick="setMode(3)">Simples (Total Direto)</button>
             </div>
         </div>
 
