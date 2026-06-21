@@ -223,35 +223,44 @@
         };
 
         // --- FUNÇÃO PARA GERAR DADOS VAZIOS ---
-        const generateCompleteDataSet = (master, values = {}, responsavel = "", unidade = "-", catalog = {}) => {
+        const generateCompleteDataSet = (master, values = {}, responsavel = "", unidade = "-", catalog = {}, categories = []) => {
             const dataset = { responsavel, unidade };
             
-            ['aguas', 'cervejas', 'zero_energeticos', 'refrigerantes', 'sucos'].forEach(cat => {
-                dataset[cat] = master[cat].map(itemName => {
-                    const vals = values[cat]?.[itemName] || {};
-                    return { 
-                        nome: itemName, 
-                        l1: vals.l1 || 0, 
-                        l2: vals.l2 || 0, 
-                        l3: vals.l3 || 0, 
-                        l4: vals.l4 || 0,
-                        unitValue: catalog[itemName]?.unitValues?.[unidade] || catalog[itemName]?.unitValue || 0,
-                        code: catalog[itemName]?.code || ""
-                    };
-                });
-            });
-
-            ['sobremesas', 'destilados', 'picoles', 'jarras_tacas'].forEach(cat => {
-                if (!master[cat]) return;
-                dataset[cat] = master[cat].map(itemName => {
-                    const qtd = values[cat]?.[itemName] || 0;
-                    return { 
-                        nome: itemName, 
-                        qtd,
-                        unitValue: catalog[itemName]?.unitValues?.[unidade] || catalog[itemName]?.unitValue || 0,
-                        code: catalog[itemName]?.code || ""
-                    };
-                });
+            // Fallback categories if none are provided
+            const catsToUse = categories && categories.length > 0 ? categories : [
+                { id: 'aguas', type: 'grid' }, { id: 'cervejas', type: 'grid' }, 
+                { id: 'zero_energeticos', type: 'grid' }, { id: 'refrigerantes', type: 'grid' }, 
+                { id: 'sucos', type: 'grid' }, { id: 'sobremesas', type: 'list' },
+                { id: 'destilados', type: 'list' }, { id: 'picoles', type: 'list' }, 
+                { id: 'jarras_tacas', type: 'list' }
+            ];
+            
+            catsToUse.forEach(cat => {
+                if (!master[cat.id]) return;
+                
+                if (cat.type === 'grid') {
+                    dataset[cat.id] = master[cat.id].map(itemName => {
+                        const vals = values[cat.id]?.[itemName] || {};
+                        return { 
+                            nome: itemName, 
+                            l1: vals.l1 || 0, l2: vals.l2 || 0, l3: vals.l3 || 0, l4: vals.l4 || 0,
+                            qtd: 0, // Fallback property to avoid undefined errors
+                            unitValue: catalog[itemName]?.unitValues?.[unidade] || catalog[itemName]?.unitValue || 0,
+                            code: catalog[itemName]?.code || ""
+                        };
+                    });
+                } else {
+                    dataset[cat.id] = master[cat.id].map(itemName => {
+                        const qtd = values[cat.id]?.[itemName] || 0;
+                        return { 
+                            nome: itemName, 
+                            qtd,
+                            l1: 0, l2: 0, l3: 0, l4: 0, // Fallback properties just in case
+                            unitValue: catalog[itemName]?.unitValues?.[unidade] || catalog[itemName]?.unitValue || 0,
+                            code: catalog[itemName]?.code || ""
+                        };
+                    });
+                }
             });
 
             return dataset;

@@ -873,7 +873,7 @@
                         }));
                     });
                 } else {
-                    newDataset = generateCompleteDataSet(dynamicMasterList, {}, responsible, selectedLocation, productCatalog);
+                    newDataset = generateCompleteDataSet(dynamicMasterList, {}, responsible, selectedLocation, productCatalog, categories);
                     newDataset.horario = time;
                     newDataset.countType = 'semanal';
                 }
