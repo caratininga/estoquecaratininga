@@ -291,7 +291,7 @@
 
         const getDatasetKey = (loc, date, countType = 'semanal') => {
             const locMap = { 'Matriz': 'matriz', 'Mucambo': 'mucambo', 'Tianguá': 'tiangua', 'Frecheirinha': 'frecheirinha' };
-            const dateStr = date.replace('/', '_');
+            const dateStr = date.replace(/\//g, '_');
             const suffix = countType === 'diaria' ? '_diaria' : '';
             return `${locMap[loc]}_${dateStr}${suffix}`;
         };
