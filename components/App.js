@@ -134,7 +134,7 @@
                 { id: 'zero_energeticos', name: 'ZERO & ENERGÉTICOS', type: 'grid' },
                 { id: 'refrigerantes', name: 'REFRIGERANTES', type: 'grid' },
                 { id: 'sucos', name: 'SUCOS', type: 'grid' },
-                { id: 'sobremesas', name: 'SOBREMESAS', type: 'list' },
+                { id: 'sobremesas', name: 'SOBREMESAS', type: 'grid' },
                 { id: 'destilados', name: 'DESTILADOS', type: 'list' },
                 { id: 'picoles', name: 'PICOLÉS', type: 'list' },
                 { id: 'jarras_tacas', name: 'JARRAS E TAÇAS', type: 'list' }
@@ -287,7 +287,7 @@
                             { id: 'zero_energeticos', name: 'ZERO & ENERGÉTICOS', type: 'grid' },
                             { id: 'refrigerantes', name: 'REFRIGERANTES', type: 'grid' },
                             { id: 'sucos', name: 'SUCOS', type: 'grid' },
-                            { id: 'sobremesas', name: 'SOBREMESAS', type: 'list' },
+                            { id: 'sobremesas', name: 'SOBREMESAS', type: 'grid' },
                             { id: 'destilados', name: 'DESTILADOS', type: 'list' },
                             { id: 'picoles', name: 'PICOLÉS', type: 'list' },
                             { id: 'jarras_tacas', name: 'JARRAS E TAÇAS', type: 'list' }
