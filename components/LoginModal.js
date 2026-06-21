@@ -7,9 +7,9 @@
                 e.preventDefault();
                 setError('');
                 try {
-                    await onLogin(email, password);
+                    await onLogin(email.trim(), password);
                 } catch (err) {
-                    setError("Falha no login: Verifique suas credenciais.");
+                    setError("Falha no login: E-mail ou senha incorretos.");
                     console.error(err);
                 }
             };

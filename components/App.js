@@ -301,10 +301,18 @@
                             console.log("Backup de 'geral' concluído.");
                         }
 
-                        const dSets = data.dataSets || {};
-                        const sFlow = data.stockFlow || {};
+                        let dSets = data.dataSets || {};
+                        let sFlow = data.stockFlow || {};
                         const catg = data.categories || defaultCategories;
                         const pCat = data.productCatalog || initialCat;
+
+                        // SANITIZE KEYS to remove slashes (prevents Firebase subcollection permission errors)
+                        const safeDSets = {};
+                        for (const k of Object.keys(dSets)) { safeDSets[k.replace(/\//g, '_')] = dSets[k]; }
+                        const safeSFlow = {};
+                        for (const k of Object.keys(sFlow)) { safeSFlow[k.replace(/\//g, '_')] = sFlow[k]; }
+                        dSets = safeDSets;
+                        sFlow = safeSFlow;
 
                         // Set states
                         setDataSets(dSets);
