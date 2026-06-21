@@ -207,9 +207,15 @@
                 const initAuth = () => {
                     try {
                         unsubscribeFn = window.onAuthStateChanged(window.auth, (currentUser) => {
-                            setUser(currentUser);
-                            setIsCheckingAuth(false);
-                            if (currentUser) handleLoadFromCloud();
+                            if (currentUser && currentUser.isAnonymous) {
+                                window.signOut(window.auth);
+                                setUser(null);
+                                setIsCheckingAuth(false);
+                            } else {
+                                setUser(currentUser);
+                                setIsCheckingAuth(false);
+                                if (currentUser) handleLoadFromCloud();
+                            }
                         });
                     } catch (err) {
                         setAuthError(err.toString());
