@@ -120,6 +120,9 @@
             const [printMode, setPrintMode] = useState('full');
             const [isLoading, setIsLoading] = useState(false);
             const [migrationProgress, setMigrationProgress] = useState(null);
+            const [linkCopied, setLinkCopied] = useState(false);
+            const [linkModalData, setLinkModalData] = useState(null);
+            const [linkShowExpected, setLinkShowExpected] = useState(false);
             
             const [stockFlow, setStockFlow] = useState({});
             const [dataSets, setDataSets] = useState({}); 
@@ -152,7 +155,7 @@
             }, [productCatalog, categories]);
 
 
-            const [isEditing, setIsEditing] = useState(false);
+
             const [isPrintSheetMode, setIsPrintSheetMode] = useState(false);
             const [showPrintSheetModal, setShowPrintSheetModal] = useState(false);
             const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
@@ -161,7 +164,7 @@
             const customAlert = (msg) => setAlertMessage(msg);
 
             // Reset editing when date or location changes
-            useEffect(() => { setIsEditing(false); }, [selectedDate, selectedLocation]);
+
 
             // Auto-select count type when navigating to a date:
             // prefer weekly; if only daily exists, switch to daily.
@@ -805,7 +808,7 @@
             };
 
             const handleResponsibleChange = (newVal) => {
-                if (!isEditing) return;
+
                 setDataSets(prev => {
                     const baseData = JSON.parse(JSON.stringify(currentData));
                     const updatedData = { ...baseData, responsavel: newVal };
@@ -821,7 +824,7 @@
             };
 
             const handleTimeChange = (newVal) => {
-                if (!isEditing) return;
+
                 setDataSets(prev => {
                     const baseData = JSON.parse(JSON.stringify(currentData));
                     const updatedData = { ...baseData, horario: newVal };
@@ -865,7 +868,7 @@
                 setDataSets(newDataSets);
                 setSelectedDate(date);
                 setSelectedCountType(countType);
-                setIsEditing(true);
+
 
                 if (user) {
                     window.setDoc(window.doc(window.db, "contagens", key), {
@@ -1336,14 +1339,14 @@
                                     <div className="text-right border-l border-white/10 pl-4 md:pl-8">
                                         <p className="text-slate-300 text-[10px] uppercase tracking-wider mb-1">Status</p>
                                         <p className="text-xl font-bold text-[#00a86b]">
-                                            {isEditing ? 'Editando' : 'Finalizado'}
+                                            {'Editando'}
                                         </p>
                                     </div>
                                 </div>
                             </div>
                             
                             {/* Alert Banner */}
-                            {(!isEditing && viewMode === 'inventory') && (
+                            {(viewMode === 'inventory') && (
                                 <div className="mt-4 flex items-center gap-2 text-sm text-[#003d33] bg-[#00a86b]/10 p-3 rounded-lg border border-[#00a86b]/20">
                                     <AlertCircle size={16} className="shrink-0" />
                                     <p>Selecione o período ou clique em <strong>"Modo Edição"</strong> para exibir e alterar os valores corretamente.</p>
@@ -1355,13 +1358,13 @@
                                     <span className="text-xs font-bold text-slate-500 uppercase tracking-wide shrink-0">Visualizando:</span>
                                     <div className="flex bg-slate-100 rounded-lg p-1 gap-1">
                                         <button
-                                            onClick={() => { setSelectedCountType('semanal'); setIsEditing(false); }}
+                                            onClick={() => { setSelectedCountType('semanal'); }}
                                             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-bold transition-all ${selectedCountType === 'semanal' ? 'bg-white shadow text-[#003d33] border border-slate-200' : 'text-slate-500 hover:text-slate-700'}`}
                                         >
                                             <ClipboardList size={13} /> Semanal
                                         </button>
                                         <button
-                                            onClick={() => { setSelectedCountType('diaria'); setIsEditing(false); }}
+                                            onClick={() => { setSelectedCountType('diaria'); }}
                                             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-bold transition-all ${selectedCountType === 'diaria' ? 'bg-blue-600 shadow text-white' : 'text-slate-500 hover:text-slate-700'}`}
                                         >
                                             <Calendar size={13} /> Diária
@@ -1417,31 +1420,31 @@
                             
                             {/* FILTERS BAR */}
                             {(viewMode !== 'products' && viewMode !== 'categories' && viewMode !== 'intelligence') && (
-                                <div className="flex items-center gap-2 lg:gap-4 mb-6 bg-white p-2 md:p-4 rounded-xl border border-slate-200 shadow-sm print:hidden">
+                                <div className="flex items-center gap-1 sm:gap-2 lg:gap-4 mb-6 bg-white p-1 sm:p-2 md:p-4 rounded-xl border border-slate-200 shadow-sm print:hidden">
                                 <div className="hidden lg:flex items-center gap-2 font-bold text-slate-800 shrink-0">
                                     <List size={18} className="text-slate-400" /> 
                                     <span>Resumo</span>
                                 </div>
                                 
-                                <div className="flex flex-1 items-center justify-between gap-1 sm:gap-2">
-                                    <div className="flex items-center gap-1 bg-slate-50 border border-slate-200 rounded-lg px-2 py-1.5 focus-within:border-[#00a86b] transition-all shrink-0">
+                                <div className="flex items-center justify-between gap-0.5 sm:gap-2 w-full">
+                                    <div className="flex items-center gap-1 bg-slate-50 border border-slate-200 rounded-lg px-1.5 sm:px-2 py-1.5 focus-within:border-[#00a86b] transition-all shrink-0">
                                         <span className="hidden md:inline text-[10px] font-semibold text-slate-500 uppercase">Período:</span>
                                         <CustomDatePicker 
                                             selectedDate={selectedDate} 
                                             availableDates={availableDates} 
-                                            onSelectDate={(d) => { setSelectedDate(d); setIsEditing(false); }} 
+                                            onSelectDate={(d) => { setSelectedDate(d); }} 
                                             dailyDates={availableDates.filter(d => isDatasetDaily(dataSets[getDatasetKey(selectedLocation, d)]))}
                                         />
                                     </div>
                                     
-                                    <div className="flex items-center gap-1 bg-slate-50 border border-slate-200 rounded-lg px-2 py-1.5 focus-within:border-[#00a86b] transition-all shrink min-w-0">
-                                        <span className="hidden md:inline text-[10px] font-semibold text-slate-500 uppercase shrink-0">Resp.:</span>
-                                        <input type="text" value={currentData.responsavel || ''} onChange={(e) => handleResponsibleChange(e.target.value)} disabled={!isEditing} placeholder="Sem nome" className="bg-transparent text-sm font-medium text-slate-800 outline-none w-full min-w-[50px] max-w-[120px] disabled:opacity-50 truncate" />
+                                    <div className="flex items-center gap-1 bg-slate-50 border border-slate-200 rounded-lg px-1.5 sm:px-2 py-1.5 focus-within:border-[#00a86b] transition-all shrink-0">
+                                        <span className="text-[10px] font-semibold text-slate-500 uppercase shrink-0">Resp.:</span>
+                                        <input type="text" value={currentData.responsavel || ''} onChange={(e) => handleResponsibleChange(e.target.value)} placeholder="Nome" className="bg-transparent text-sm font-medium text-slate-800 outline-none w-14 sm:w-24 disabled:opacity-50 truncate" />
                                     </div>
 
-                                    <div className="flex items-center gap-1 bg-slate-50 border border-slate-200 rounded-lg px-2 py-1.5 focus-within:border-[#00a86b] transition-all shrink-0">
+                                    <div className="flex items-center gap-0.5 sm:gap-1 bg-slate-50 border border-slate-200 rounded-lg px-1.5 sm:px-2 py-1.5 focus-within:border-[#00a86b] transition-all shrink-0">
                                         <span className="hidden md:inline text-[10px] font-semibold text-slate-500 uppercase">Hora:</span>
-                                        <input type="time" value={currentData.horario || ''} onChange={(e) => handleTimeChange(e.target.value)} disabled={!isEditing} className="bg-transparent text-sm font-medium text-slate-800 outline-none w-[70px] disabled:opacity-50" />
+                                        <input type="time" value={currentData.horario || ''} onChange={(e) => handleTimeChange(e.target.value)} className="bg-transparent text-sm font-medium text-slate-800 outline-none w-[65px] disabled:opacity-50" />
                                     </div>
 
                                     <div className="flex items-center gap-1 shrink-0 ml-auto">
@@ -1475,11 +1478,48 @@
                                         
                                         {viewMode === 'counting' && (
                                             <>
-                                                <button className={`flex items-center gap-1 px-2 md:px-4 py-1.5 rounded-lg text-xs md:text-sm font-bold transition-all shadow-sm shrink-0 ${isEditing ? 'bg-white border border-[#00a86b] text-[#00a86b] hover:bg-green-50' : 'bg-[#00a86b] border border-transparent text-white hover:bg-[#00905a]'}`} onClick={() => setIsEditing(!isEditing)}>
-                                                    <Save size={16} /> <span className="hidden md:inline">{isEditing ? 'Salvar Edição' : 'Modo Edição'}</span>
-                                                </button>
+
                                                 <button onClick={handleDeleteClick} className="flex items-center justify-center gap-1 px-2 py-1.5 rounded-lg text-sm font-bold transition-all shadow-sm bg-red-100 text-red-600 hover:bg-red-200 border border-transparent shrink-0" title="Excluir Contagem">
                                                     <Trash2 size={16} /> <span className="hidden xl:inline">Excluir</span>
+                                                </button>
+                                                <button
+                                                    onClick={async () => {
+                                                        const base = window.location.origin + window.location.pathname.replace(/\/[^\/]*$/, '/');
+                                                        const url = `${base}form.html?key=${currentKey}`;
+                                                        
+                                                        // Update Firebase to unlock the link and add 'previsto'
+                                                        try {
+                                                            const countDocRef = window.doc(window.db, "contagens", currentKey);
+                                                            
+                                                            const previstosMap = {};
+
+                                                            categories.forEach(cat => {
+                                                                if(currentData[cat.id]) {
+                                                                    currentData[cat.id].forEach(item => {
+                                                                        const flow = effectiveFlowData?.[item.nome] || { entry: 0, exit: 0 };
+                                                                        const prevStock = previousStockData?.[item.nome] || 0;
+                                                                        previstosMap[item.nome] = (prevStock + (parseInt(flow.entry)||0)) - (parseInt(flow.exit)||0);
+                                                                    });
+                                                                }
+                                                            });
+
+                                                            await window.setDoc(countDocRef, { linkStatus: 'aberto', previstos: previstosMap }, { merge: true });
+                                                        } catch (err) {
+                                                            console.error("Erro ao reabrir link:", err);
+                                                        }
+                                                        
+                                                        setLinkShowExpected(false);
+                                                        setLinkModalData(url);
+                                                        
+                                                        navigator.clipboard.writeText(url).then(() => {
+                                                            setLinkCopied(true);
+                                                            setTimeout(() => setLinkCopied(false), 2500);
+                                                        }).catch(() => {});
+                                                    }}
+                                                    className={`flex items-center justify-center gap-1 px-2 py-1.5 rounded-lg text-sm font-bold transition-all shadow-sm border shrink-0 ${linkCopied ? 'bg-green-100 text-green-700 border-green-200' : 'bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100'}`}
+                                                    title="Gerar Link do Formulário"
+                                                >
+                                                    <Share2 size={16} /> <span className="hidden xl:inline">{linkCopied ? 'Link copiado!' : 'Gerar Link'}</span>
                                                 </button>
                                             </>
                                         )}
@@ -1601,7 +1641,7 @@
                                                 category={cat.id} 
                                                 onUpdate={handleUpdate} 
                                                 type={cat.type} 
-                                                isEditing={isEditing} 
+                                                isEditing={true} 
                                                 catalog={productCatalog} 
                                                 selectedLocation={selectedLocation}
                                                 isPrintSheetMode={isPrintSheetMode}
@@ -1651,7 +1691,7 @@
                                                 onFlowUpdate={handleFlowUpdate} 
                                                 previousDateLabel={previousDateLabel} 
                                                 type={cat.type} 
-                                                isEditing={isEditing} 
+                                                isEditing={true} 
                                                 catalog={productCatalog} 
                                                 selectedLocation={selectedLocation}
                                                 currentDate={selectedDate}
@@ -1801,6 +1841,53 @@
                             </div>
                         </div>
                     )}
+                    
+                    {linkModalData && (() => {
+                        const finalUrl = linkShowExpected ? `${linkModalData}&showExpected=1` : linkModalData;
+                        return (
+                            <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                                <div className="bg-white rounded-2xl w-full max-w-md p-6 shadow-xl relative animate-in fade-in zoom-in duration-200">
+                                    <button onClick={() => setLinkModalData(null)} className="absolute right-4 top-4 text-slate-400 hover:text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-full p-1.5 transition-colors">
+                                        <X size={20} />
+                                    </button>
+                                    <div className="text-center mb-6">
+                                        <div className="mx-auto w-12 h-12 bg-green-100 text-green-600 flex items-center justify-center rounded-full mb-3">
+                                            <Share2 size={24} />
+                                        </div>
+                                        <h3 className="text-xl font-bold text-slate-800">Link Gerado com Sucesso!</h3>
+                                        <p className="text-sm text-slate-500 mt-1">O link foi desbloqueado e está pronto para uso.</p>
+                                    </div>
+
+                                    <div className="mb-4 flex items-center justify-between bg-slate-50 p-3 rounded-lg border border-slate-200 cursor-pointer hover:bg-slate-100 transition-colors" onClick={() => setLinkShowExpected(!linkShowExpected)}>
+                                        <div className="flex flex-col">
+                                            <span className="font-bold text-sm text-slate-700">Incluir Coluna de Estoque Teórico</span>
+                                            <span className="text-xs text-slate-500">O contador verá a quantidade esperada (Teórico).</span>
+                                        </div>
+                                        <div className={`w-10 h-5 flex items-center bg-gray-300 rounded-full p-1 duration-300 ease-in-out ${linkShowExpected ? 'bg-green-500' : ''}`}>
+                                            <div className={`bg-white w-3.5 h-3.5 rounded-full shadow-md transform duration-300 ease-in-out ${linkShowExpected ? 'translate-x-4.5' : ''}`}></div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 break-all mb-4">
+                                        <p className="text-sm text-slate-700 font-medium select-all">{finalUrl}</p>
+                                    </div>
+
+                                    <div className="flex flex-col gap-3">
+                                        <button onClick={() => {
+                                            navigator.clipboard.writeText(finalUrl);
+                                            setLinkCopied(true);
+                                            setTimeout(() => setLinkCopied(false), 2000);
+                                        }} className="w-full flex items-center justify-center gap-2 py-3 rounded-xl font-bold text-white bg-[#00a86b] hover:bg-[#00905a] transition-colors">
+                                            <Copy size={18} /> {linkCopied ? 'Copiado!' : 'Copiar Link'}
+                                        </button>
+                                        <a href={finalUrl} target="_blank" rel="noopener noreferrer" className="w-full flex items-center justify-center gap-2 py-3 rounded-xl font-bold text-slate-700 bg-white border-2 border-slate-200 hover:bg-slate-50 transition-colors">
+                                            <ExternalLink size={18} /> Acessar Formulário
+                                        </a>
+                                    </div>
+                                </div>
+                            </div>
+                        );
+                    })()}
                 </div>
             );
         };

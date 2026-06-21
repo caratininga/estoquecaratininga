@@ -1,0 +1,752 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <link rel="icon" type="image/png" href="icon.png" />
+    <title>Contagem de Estoque</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        :root {
+            --green: #00a86b;
+            --green-dark: #00905a;
+            --green-light: #e6f7f1;
+            --dark: #003d33;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: #f1f5f9;
+            color: #1e293b;
+            min-height: 100vh;
+            padding-bottom: 72px;
+        }
+
+        /* ── HEADER ────────────────────────────────────────── */
+        .header {
+            background: linear-gradient(135deg, #003d33 0%, #006b50 100%);
+            color: white;
+            padding: 16px 20px 20px;
+            position: sticky;
+            top: 0;
+            z-index: 50;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.18);
+        }
+        .header-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+        }
+        .header-logo {
+            display: flex; align-items: center; gap: 9px;
+        }
+        .header-logo svg { width: 22px; height: 22px; opacity: 0.9; flex-shrink: 0; }
+        .header-title { font-size: 1rem; font-weight: 700; }
+        .header-sub { font-size: 0.68rem; opacity: 0.7; }
+        .save-badge {
+            display: flex; align-items: center; gap: 5px;
+            padding: 5px 12px; border-radius: 999px;
+            font-size: 0.7rem; font-weight: 600; flex-shrink: 0;
+            transition: all 0.3s;
+        }
+        .save-badge.saved { background: rgba(255,255,255,0.15); color: rgba(255,255,255,0.9); }
+        .save-badge.saving { background: rgba(255,210,0,0.2); color: #fde68a; }
+        .save-badge.error { background: rgba(255,80,80,0.25); color: #fca5a5; }
+        .save-dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+        .save-badge.saving .save-dot { animation: blink 1s ease-in-out infinite; }
+        @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.25} }
+
+        .info-chips { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
+        .chip {
+            background: rgba(255,255,255,0.12);
+            border: 1px solid rgba(255,255,255,0.2);
+            border-radius: 7px; padding: 4px 10px;
+            font-size: 0.68rem; font-weight: 600; color: rgba(255,255,255,0.9);
+        }
+        .chip span { opacity: 0.6; margin-right: 3px; }
+
+        /* ── CONTENT ───────────────────────────────────────── */
+        .content { max-width: 900px; margin: 0 auto; padding: 20px 12px; }
+
+        /* ── STATE ─────────────────────────────────────────── */
+        .state {
+            display: flex; flex-direction: column;
+            align-items: center; justify-content: center;
+            min-height: 55vh; text-align: center; gap: 14px;
+        }
+        .state-icon { font-size: 2.8rem; }
+        .state-title { font-size: 1.1rem; font-weight: 700; color: #1e293b; }
+        .state-sub { font-size: 0.85rem; color: #64748b; max-width: 300px; line-height: 1.5; }
+        .spinner {
+            width: 36px; height: 36px;
+            border: 3px solid #e2e8f0; border-top-color: var(--green);
+            border-radius: 50%; animation: spin 0.75s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* ── SECTION CARD ──────────────────────────────────── */
+        .section-card {
+            background: white;
+            border-radius: 14px;
+            border: 1px solid #e2e8f0;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+            overflow: hidden;
+            margin-bottom: 16px;
+        }
+        .section-head {
+            padding: 12px 18px;
+            background: white;
+            border-bottom: 1px solid #f1f5f9;
+            display: flex; align-items: center; gap: 8px;
+        }
+        .section-accent { width: 4px; height: 22px; background: var(--green); border-radius: 2px; flex-shrink: 0; }
+        .section-title { font-size: 0.9rem; font-weight: 700; color: #1e293b; }
+        .section-count {
+            margin-left: auto; font-size: 0.7rem; font-weight: 600;
+            background: #f1f5f9; color: #64748b;
+            padding: 2px 9px; border-radius: 999px;
+        }
+
+        /* ── TABLE ─────────────────────────────────────────── */
+        .tbl-wrap { overflow-x: auto; }
+        table {
+            width: 100%; border-collapse: collapse;
+            font-size: 0.82rem;
+        }
+        thead tr {
+            background: #003d33;
+            color: white;
+        }
+        thead th {
+            padding: 10px 4px; font-weight: 700; font-size: 0.65rem;
+            color: #64748b; text-transform: uppercase; letter-spacing: 0.5px;
+            text-align: center; border-bottom: 2px solid #e2e8f0;
+        }
+        thead th.th-name { text-align: left; padding-left: 14px; }
+        thead th.th-prev { color: #f59e0b; }
+        td.td-prev { font-weight: 700; color: #d97706; text-align: center; background: #fffbeb; }
+        thead th.th-total { background: rgba(0,0,0,0.25); }
+
+        tbody tr {
+            border-bottom: 1px solid #f1f5f9;
+            transition: background 0.12s;
+        }
+        tbody tr:last-child { border-bottom: none; }
+        tbody tr.zero { opacity: 0.55; }
+        tbody tr.zero:hover, tbody tr:focus-within { opacity: 1; background: #f0fdf9; }
+        tbody tr:not(.zero):hover { background: #f8fafc; }
+
+        td { padding: 8px 6px; text-align: center; vertical-align: middle; }
+        td.td-name {
+            text-align: left; padding-left: 14px;
+            font-weight: 600; color: #1e293b;
+            font-size: 0.78rem; text-transform: uppercase;
+            white-space: nowrap;
+        }
+        td.td-total {
+            font-weight: 800; color: #2563eb;
+            background: #f8fafc; font-size: 0.9rem;
+        }
+        td.td-total.zero-val { color: #94a3b8; }
+
+        /* ── INPUTS ────────────────────────────────────────── */
+        .num {
+            width: 56px; padding: 6px 2px;
+            text-align: center; border-radius: 7px;
+            border: 1.5px solid #e2e8f0;
+            font-size: 0.875rem; font-weight: 700;
+            color: #1e293b; background: #f8fafc;
+            outline: none; transition: all 0.15s;
+            -moz-appearance: textfield;
+        }
+        .num::-webkit-outer-spin-button,
+        .num::-webkit-inner-spin-button { -webkit-appearance: none; }
+        .num:focus {
+            border-color: var(--green);
+            background: white;
+            box-shadow: 0 0 0 3px rgba(0,168,107,0.12);
+        }
+        .num.filled {
+            background: var(--green-light);
+            border-color: var(--green);
+            color: #006b50;
+        }
+        .num.qty {
+            width: 80px;
+            font-size: 1rem; padding: 7px 4px;
+        }
+
+        /* ── BOTTOM BAR ────────────────────────────────────── */
+        .bottom-bar {
+            position: fixed; bottom: 0; left: 0; right: 0;
+            background: white; border-top: 1px solid #e2e8f0;
+            padding: 10px 20px;
+            display: flex; align-items: center; justify-content: space-between;
+            gap: 12px; z-index: 40;
+            box-shadow: 0 -4px 16px rgba(0,0,0,0.06);
+        }
+        .bottom-info { font-size: 0.72rem; color: #64748b; font-weight: 500; }
+        .bottom-info strong { color: #1e293b; }
+        .btn-done {
+            padding: 9px 22px; background: var(--green);
+            color: white; border: none; border-radius: 9px;
+            font-size: 0.82rem; font-weight: 700; cursor: pointer;
+            transition: background 0.15s; flex-shrink: 0;
+        }
+        .btn-done:hover { background: var(--green-dark); }
+        .btn-done:active { transform: scale(0.97); }
+
+        /* ── DONE OVERLAY ──────────────────────────────────── */
+        .overlay {
+            position: fixed; inset: 0;
+            background: rgba(0,0,0,0.5); backdrop-filter: blur(4px);
+            display: flex; align-items: center; justify-content: center;
+            z-index: 100;
+        }
+        .done-card {
+            background: white; border-radius: 20px;
+            padding: 32px 28px; text-align: center;
+            max-width: 320px; width: 90%;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+            animation: pop 0.35s cubic-bezier(0.34,1.56,0.64,1);
+        }
+        @keyframes pop { from{transform:scale(0.8);opacity:0} to{transform:scale(1);opacity:1} }
+        .done-emoji { font-size: 3rem; margin-bottom: 10px; }
+        .done-title { font-size: 1.2rem; font-weight: 800; margin-bottom: 8px; }
+        .done-sub { font-size: 0.82rem; color: #64748b; line-height: 1.5; }
+        .done-btn {
+            margin-top: 18px; padding: 10px 24px;
+            background: var(--green); color: white; border: none;
+            border-radius: 9px; font-size: 0.85rem; font-weight: 700;
+            cursor: pointer; width: 100%;
+        }
+
+        /* ── MODES ─────────────────────────────────────────── */
+        .mode-switcher-container {
+            max-width: 900px; margin: 16px auto 0; padding: 0 12px;
+        }
+        .mode-switcher {
+            display: flex; background: #e2e8f0; padding: 4px; border-radius: 10px;
+            overflow-x: auto; -ms-overflow-style: none; scrollbar-width: none;
+        }
+        .mode-switcher::-webkit-scrollbar { display: none; }
+        .mode-btn {
+            flex: 1; border: none; background: transparent; padding: 10px;
+            font-size: 0.8rem; font-weight: 700; color: #64748b;
+            border-radius: 8px; cursor: pointer; white-space: nowrap; transition: all 0.2s;
+            text-align: center;
+        }
+        .mode-btn:hover { color: #1e293b; }
+        .mode-btn.active {
+            background: white; color: #003d33; box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+
+        .col-switcher {
+            display: flex; align-items: center; justify-content: center;
+            gap: 12px; margin-bottom: 12px; padding: 12px;
+            background: white; border-radius: 10px; border: 1px solid #e2e8f0;
+        }
+        .col-btn {
+            padding: 6px 14px; background: #f1f5f9; border: none; border-radius: 6px;
+            font-size: 0.8rem; font-weight: 600; cursor: pointer; color: #475569;
+        }
+        .col-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .col-label { font-size: 0.9rem; font-weight: 700; color: #1e293b; width: 60px; text-align: center; }
+
+        @media (max-width: 480px) {
+            .num { width: 48px; font-size: 0.82rem; }
+            td.td-name { font-size: 0.72rem; white-space: normal; min-width: 120px; }
+        }
+    </style>
+</head>
+<body>
+<div id="root"></div>
+
+<!-- Firebase -->
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+    import { getFirestore, doc, getDoc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+    import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+
+    const firebaseConfig = {
+        apiKey: "AIzaSyB9p4COfv1T1DS4CV-MvGfBuGGoWA7mk98",
+        authDomain: "estoquecaratininga.firebaseapp.com",
+        projectId: "estoquecaratininga",
+        storageBucket: "estoquecaratininga.firebasestorage.app",
+        messagingSenderId: "291701383638",
+        appId: "1:291701383638:web:ab403e883f75b92bd0c477"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db  = getFirestore(app);
+    const auth = getAuth(app);
+    window._db = db;
+    window._fs = { doc, getDoc, setDoc, onSnapshot };
+
+    try { await signInAnonymously(auth); }
+    catch(e) { console.warn('Auth anônima falhou:', e.message); }
+
+    window.dispatchEvent(new Event('firebase-ready'));
+</script>
+
+<script>
+(function () {
+    /* ── CONSTANTS ─────────────────────────────────────────────────── */
+    // CATS will be populated from Firestore config — fallback defaults below
+    let CATS = [
+        { id: 'aguas',            name: 'Águas',              type: 'grid' },
+        { id: 'cervejas',         name: 'Cervejas',           type: 'grid' },
+        { id: 'zero_energeticos', name: 'Zero / Energéticos', type: 'grid' },
+        { id: 'refrigerantes',    name: 'Refrigerantes',      type: 'grid' },
+        { id: 'sucos',            name: 'Sucos',              type: 'grid' },
+        { id: 'sobremesas',       name: 'Sobremesas',         type: 'list' },
+        { id: 'destilados',       name: 'Destilados',         type: 'list' },
+        { id: 'picoles',          name: 'Picolés',            type: 'list' },
+        { id: 'jarras_tacas',     name: 'Jarras e Taças',     type: 'list' },
+    ];
+
+    // Auto-detect the real type of an item from its stored fields
+    function itemIsGrid(item) {
+        return Object.prototype.hasOwnProperty.call(item, 'l1');
+    }
+
+    function catIsGrid(cat) {
+        // Use Firestore-loaded type; grid = any value other than 'list'
+        return cat.type !== 'list';
+    }
+
+    const params  = new URLSearchParams(window.location.search);
+    const docKey  = params.get('key');
+    window.showExpected = params.get('showExpected') === '1';
+
+    /* ── STATE ──────────────────────────────────────────────────────── */
+    let dataset    = null;
+    let info       = null;
+    let saveStatus = 'saved';
+    let saveTimer  = null;
+    
+    // View Modes
+    window.currentMode = 1; // 1 = Padrão, 2 = Sequencial, 3 = Simples
+    window.currentCol  = 1; // 1 a 4
+
+    window.setMode = function(m) {
+        window.currentMode = m;
+        document.querySelectorAll('.mode-btn').forEach((b, i) => b.classList.toggle('active', i+1 === m));
+        document.getElementById('col-switcher-container').style.display = m === 2 ? 'block' : 'none';
+        renderSections();
+    };
+
+    window.setCol = function(c) {
+        if (c < 1 || c > 4) return;
+        window.currentCol = c;
+        document.getElementById('lbl-col').innerText = c;
+        document.getElementById('btn-col-prev').disabled = c === 1;
+        document.getElementById('btn-col-next').disabled = c === 4;
+        renderSections();
+    };
+
+    /* ── HELPERS ────────────────────────────────────────────────────── */
+    function parseKey(key) {
+        const parts = key.split('_');
+        const isDaily = parts[parts.length - 1] === 'diaria';
+        const mmIdx   = isDaily ? parts.length - 2 : parts.length - 1;
+        const ddIdx   = mmIdx - 1;
+        const locMap  = { matriz:'Matriz', mucambo:'Mucambo', tiangua:'Tianguá', frecheirinha:'Frecheirinha' };
+        const locKey  = parts.slice(0, ddIdx).join('_');
+        return {
+            location: locMap[locKey] || locKey,
+            date:     `${parts[ddIdx]}/${parts[mmIdx]}`,
+            type:     isDaily ? 'Diária' : 'Semanal'
+        };
+    }
+
+    function gridTotal(item) {
+        return (parseInt(item.l1)||0)+(parseInt(item.l2)||0)+(parseInt(item.l3)||0)+(parseInt(item.l4)||0);
+    }
+
+    function itemVal(item) {
+        // Returns the "count" value of an item regardless of storage format
+        if (itemIsGrid(item)) return gridTotal(item);
+        return parseInt(item.qtd) || 0;
+    }
+
+    function globalTotal() {
+        let s = 0;
+        CATS.forEach(cat => { (dataset?.[cat.id] || []).forEach(i => { s += itemVal(i); }); });
+        return s;
+    }
+
+    function countFilled() {
+        let f = 0, t = 0;
+        CATS.forEach(cat => {
+            (dataset?.[cat.id] || []).forEach(i => { t++; if (itemVal(i) > 0) f++; });
+        });
+        return { f, t };
+    }
+
+    /* ── SAVE ───────────────────────────────────────────────────────── */
+    function scheduleSave() {
+        setSaveStatus('saving');
+        if (saveTimer) clearTimeout(saveTimer);
+        saveTimer = setTimeout(async () => {
+            try {
+                const { doc, setDoc } = window._fs;
+                await setDoc(doc(window._db, 'contagens', docKey), {
+                    dataSet: dataset,
+                    lastUpdated: new Date().toISOString(),
+                    updatedBy: 'formulario'
+                }, { merge: true });
+                setSaveStatus('saved');
+            } catch (e) {
+                console.error(e);
+                setSaveStatus('error');
+            }
+        }, 1500);
+    }
+
+    function setSaveStatus(s) {
+        saveStatus = s;
+        const el = document.getElementById('save-badge');
+        if (!el) return;
+        const label = { saved:'Salvo ✓', saving:'Salvando...', error:'Erro!' }[s];
+        el.className = `save-badge ${s}`;
+        el.innerHTML = `<div class="save-dot"></div>${label}`;
+    }
+
+    /* ── INPUT HANDLER ──────────────────────────────────────────────── */
+    window.setVal = function (catId, nome, field, rawVal, el) {
+        if (!dataset?.[catId]) return;
+        const idx = dataset[catId].findIndex(i => i.nome === nome);
+        if (idx < 0) return;
+
+        const val = rawVal === '' ? 0 : (parseInt(rawVal) || 0);
+        dataset[catId][idx][field] = val;
+        el.classList.toggle('filled', val > 0);
+
+        // Se for Modo Simples (3) e editou a L1 (Total Direto), zera L2, L3, L4
+        if (window.currentMode === 3 && field === 'l1') {
+            dataset[catId][idx].l2 = 0;
+            dataset[catId][idx].l3 = 0;
+            dataset[catId][idx].l4 = 0;
+        }
+
+        /* Update the running total cell for this row (grid only) */
+        if (field !== 'qtd') {
+            const safeId = `${catId}__${nome}`.replace(/[^a-z0-9]/gi, '_');
+            const totEl  = document.getElementById('tot_' + safeId);
+            if (totEl) {
+                const tot = gridTotal(dataset[catId][idx]);
+                totEl.textContent = tot;
+                totEl.className   = `td-total${tot === 0 ? ' zero-val' : ''}`;
+            }
+        }
+
+        updateBottomBar();
+        scheduleSave();
+    };
+
+    /* ── BOTTOM BAR ─────────────────────────────────────────────────── */
+    function updateBottomBar() {
+        const el = document.getElementById('bottom-bar');
+        if (!el) return;
+        const { f, t } = countFilled();
+        const tot = globalTotal();
+        el.innerHTML = `
+            <div class="bottom-info">
+                <strong>${f}</strong>/${t} produtos · Total: <strong>${tot}</strong> un
+            </div>
+            <button class="btn-done" onclick="finishForm()">Concluir ✓</button>
+        `;
+    }
+
+    /* ── RENDER ─────────────────────────────────────────────────────── */
+    function renderSections() {
+        const container = document.getElementById('sections');
+        if (!container || !dataset) return;
+
+        const html = CATS.map(cat => {
+            const items = dataset[cat.id];
+            if (!items || items.length === 0) return '';
+
+            // Detect actual type from first item's stored fields
+            const isGrid = itemIsGrid(items[0]);
+
+            let thead = '';
+            if (isGrid) {
+                if (window.currentMode === 1) {
+                    thead = `<tr>
+                        <th class="th-name">Produto</th>
+                        ${window.showExpected ? '<th class="th-prev">Teórico</th>' : ''}
+                        <th>Loc 1</th><th>Loc 2</th><th>Loc 3</th><th>Loc 4</th>
+                        <th class="th-total">Total</th>
+                    </tr>`;
+                } else if (window.currentMode === 2) {
+                    thead = `<tr>
+                        <th class="th-name">Produto</th>
+                        ${window.showExpected ? '<th class="th-prev">Teórico</th>' : ''}
+                        <th>Loc ${window.currentCol}</th>
+                        <th class="th-total">Acumulado</th>
+                    </tr>`;
+                } else if (window.currentMode === 3) {
+                    thead = `<tr>
+                        <th class="th-name">Produto</th>
+                        ${window.showExpected ? '<th class="th-prev">Teórico</th>' : ''}
+                        <th class="th-total">Total Direto</th>
+                    </tr>`;
+                }
+            } else {
+                thead = `<tr>
+                    <th class="th-name">Produto</th>
+                    ${window.showExpected ? '<th class="th-prev">Teórico</th>' : ''}
+                    <th class="th-total">Quantidade</th>
+                </tr>`;
+            }
+
+            const rows = items.map(item => {
+                const safeId   = `${cat.id}__${item.nome}`.replace(/[^a-z0-9]/gi, '_');
+                const safeName = item.nome.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+                const gridItem = itemIsGrid(item);
+
+                if (gridItem) {
+                    const tot = gridTotal(item);
+                    const isZ = tot === 0;
+                    
+                    let rowHtml = `<td class="td-name">${item.nome}</td>`;
+                    if (window.showExpected) {
+                        const expectedVal = window.currentDocData?.previstos?.[item.nome];
+                        rowHtml += `<td class="td-prev">${expectedVal !== undefined ? expectedVal : '-'}</td>`;
+                    }
+
+                    if (window.currentMode === 1) {
+                        const inp = ['l1','l2','l3','l4'].map(f => {
+                            const v = parseInt(item[f]) || 0;
+                            return `<td><input class="num${v>0?' filled':''}" type="number" min="0" value="${v}" oninput="setVal('${cat.id}','${safeName}','${f}',this.value,this)" onchange="setVal('${cat.id}','${safeName}','${f}',this.value,this)"/></td>`;
+                        }).join('');
+                        rowHtml += inp + `<td class="td-total${isZ?' zero-val':''}" id="tot_${safeId}">${tot}</td>`;
+                    } else if (window.currentMode === 2) {
+                        const f = `l${window.currentCol}`;
+                        const v = parseInt(item[f]) || 0;
+                        const inp = `<td><input class="num${v>0?' filled':''}" type="number" min="0" value="${v}" oninput="setVal('${cat.id}','${safeName}','${f}',this.value,this)" onchange="setVal('${cat.id}','${safeName}','${f}',this.value,this)"/></td>`;
+                        rowHtml += inp + `<td class="td-total${isZ?' zero-val':''}" id="tot_${safeId}">${tot}</td>`;
+                    } else if (window.currentMode === 3) {
+                        // Modo 3 salva o total direto no l1
+                        const inp = `<td class="td-total${tot===0?' zero-val':''}"><input class="num qty${tot>0?' filled':''}" type="number" min="0" value="${tot}" oninput="setVal('${cat.id}','${safeName}','l1',this.value,this)" onchange="setVal('${cat.id}','${safeName}','l1',this.value,this)"/></td>`;
+                        rowHtml += inp;
+                    }
+
+                    return `<tr class="${isZ ? 'zero' : ''}">${rowHtml}</tr>`;
+                } else {
+                    const v  = parseInt(item.qtd) || 0;
+                    const isZ = v === 0;
+                    const expectedVal = window.currentDocData?.previstos?.[item.nome];
+                    let prevHtml = window.showExpected ? `<td class="td-prev">${expectedVal !== undefined ? expectedVal : '-'}</td>` : '';
+                    return `<tr class="${isZ ? 'zero' : ''}">
+                        <td class="td-name">${item.nome}</td>
+                        ${prevHtml}
+                        <td class="td-total${isZ?' zero-val':''}">
+                            <input class="num qty${v>0?' filled':''}" type="number" min="0"
+                                value="${v}"
+                                oninput="setVal('${cat.id}','${safeName}','qtd',this.value,this)"
+                                onchange="setVal('${cat.id}','${safeName}','qtd',this.value,this)"/>
+                        </td>
+                    </tr>`;
+                }
+            }).join('');
+
+            return `<div class="section-card">
+                <div class="section-head">
+                    <div class="section-accent"></div>
+                    <div class="section-title">${cat.name}</div>
+                    <div class="section-count">${items.length} itens</div>
+                </div>
+                <div class="tbl-wrap">
+                    <table><thead>${thead}</thead><tbody>${rows}</tbody></table>
+                </div>
+            </div>`;
+        }).join('');
+
+        container.innerHTML = html || `<div class="state"><div class="state-icon">📭</div><div class="state-title">Nenhum produto encontrado</div></div>`;
+        updateBottomBar();
+    }
+
+    /* ── FINISH ─────────────────────────────────────────────────────── */
+    window.finishForm = function () {
+        if (saveTimer) clearTimeout(saveTimer);
+        const { doc, setDoc } = window._fs;
+        setDoc(doc(window._db, 'contagens', docKey), {
+            dataSet: dataset,
+            lastUpdated: new Date().toISOString(),
+            updatedBy: 'formulario',
+            linkStatus: 'concluido'
+        }, { merge: true }).then(() => {
+            setSaveStatus('saved');
+            document.getElementById('done-overlay').style.display = 'flex';
+        }).catch(e => alert('Erro ao salvar: ' + e.message));
+    };
+
+    window.closeDone = function () {
+        document.getElementById('done-overlay').style.display = 'none';
+    };
+
+    /* ── SKELETON ───────────────────────────────────────────────────── */
+    document.getElementById('root').innerHTML = `
+        <header class="header">
+            <div class="header-row">
+                <div class="header-logo">
+                    <div style="width: 36px; height: 36px; background: white; border-radius: 10px; display: flex; align-items: center; justify-content: center; padding: 4px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                        <img src="icon.png" alt="Caratininga" style="width: 100%; height: 100%; object-fit: contain;" />
+                    </div>
+                    <div>
+                        <div class="header-title">Formulário de Contagem</div>
+                        <div class="header-sub">Preencha abaixo · salvo automaticamente</div>
+                    </div>
+                </div>
+                <div class="save-badge saved" id="save-badge">
+                    <div class="save-dot"></div>Salvo ✓
+                </div>
+            </div>
+            <div class="info-chips" id="info-chips"></div>
+        </header>
+
+        <div class="mode-switcher-container" id="mode-switcher-container">
+            <div class="mode-switcher" id="mode-switcher">
+                <button class="mode-btn active" onclick="setMode(1)">Padrão (4 Colunas)</button>
+                <button class="mode-btn" onclick="setMode(2)">Sequencial</button>
+                <button class="mode-btn" onclick="setMode(3)">Simples (Total Direto)</button>
+            </div>
+        </div>
+
+        <main class="content">
+            <div id="col-switcher-container" style="display:none;">
+                <div class="col-switcher">
+                    <button class="col-btn" id="btn-col-prev" onclick="setCol(window.currentCol-1)" disabled>◀ Anterior</button>
+                    <div class="col-label">Loc <span id="lbl-col">1</span></div>
+                    <button class="col-btn" id="btn-col-next" onclick="setCol(window.currentCol+1)">Próximo ▶</button>
+                </div>
+            </div>
+
+            <div id="sections">
+                <div class="state">
+                    <div class="spinner"></div>
+                    <div class="state-title">Carregando contagem...</div>
+                    <div class="state-sub">Conectando ao Firebase</div>
+                </div>
+            </div>
+        </main>
+
+        <div class="bottom-bar" id="bottom-bar"></div>
+
+        <div class="overlay" id="done-overlay" style="display:none">
+            <div class="done-card">
+                <div class="done-emoji">🎉</div>
+                <div class="done-title">Contagem concluída!</div>
+                <div class="done-sub">Dados salvos com sucesso. Obrigado!</div>
+                <button class="done-btn" onclick="closeDone()">Fechar</button>
+            </div>
+        </div>
+    `;
+
+    /* ── INIT ───────────────────────────────────────────────────────── */
+    window.addEventListener('firebase-ready', async () => {
+        if (!docKey) {
+            document.getElementById('sections').innerHTML = `
+                <div class="state">
+                    <div class="state-icon">⚠️</div>
+                    <div class="state-title">Link inválido</div>
+                    <div class="state-sub">Nenhuma chave fornecida na URL. Solicite um novo link.</div>
+                </div>`;
+            return;
+        }
+
+        info = parseKey(docKey);
+        document.getElementById('info-chips').innerHTML = `
+            <div class="chip"><span>📍</span>${info.location}</div>
+            <div class="chip"><span>📅</span>${info.date}</div>
+            <div class="chip"><span>🏷️</span>Contagem ${info.type}</div>
+        `;
+
+        try {
+            const { doc, getDoc, onSnapshot } = window._fs;
+
+            // Load real category config from Firestore
+            try {
+                const cfgSnap = await getDoc(doc(window._db, 'estoque', 'config'));
+                if (cfgSnap.exists() && cfgSnap.data().categories) {
+                    CATS = cfgSnap.data().categories.map(c => ({
+                        id:   c.id,
+                        name: c.name,
+                        type: c.type  // 'grid' or 'list'
+                    }));
+                }
+            } catch(cfgErr) {
+                console.warn('Não foi possível carregar config de categorias, usando padrão', cfgErr);
+            }
+
+            const ref  = doc(window._db, 'contagens', docKey);
+            const snap = await getDoc(ref);
+
+            if (!snap.exists()) {
+                document.getElementById('sections').innerHTML = `
+                    <div class="state">
+                        <div class="state-icon">📭</div>
+                        <div class="state-title">Ficha não encontrada</div>
+                        <div class="state-sub">A ficha "<b>${docKey}</b>" não existe. Crie a contagem no site principal primeiro.</div>
+                    </div>`;
+                return;
+            }
+
+            if (snap.data().linkStatus === 'concluido') {
+                const ms = document.getElementById('mode-switcher-container');
+                if (ms) ms.style.display = 'none';
+                
+                document.getElementById('sections').innerHTML = `
+                    <div class="state">
+                        <div class="state-icon">🔒</div>
+                        <div class="state-title">Contagem Finalizada</div>
+                        <div class="state-sub">O contador já concluiu esta contagem e o link foi bloqueado.<br>Para acessar novamente, o administrador precisa <b>Gerar Link</b> novamente no sistema.</div>
+                    </div>`;
+                return;
+            }
+
+            window.currentDocData = snap.data();
+            dataset = window.currentDocData.dataSet || {};
+            renderSections();
+
+            /* Live sync */
+            onSnapshot(ref, s => {
+                if (!s.exists() || saveStatus === 'saving') return;
+                window.currentDocData = s.data();
+                if (window.currentDocData.linkStatus === 'concluido' && document.getElementById('done-overlay').style.display !== 'flex') {
+                    const ms = document.getElementById('mode-switcher-container');
+                    if (ms) ms.style.display = 'none';
+                    document.getElementById('sections').innerHTML = `
+                        <div class="state">
+                            <div class="state-icon">🔒</div>
+                            <div class="state-title">Contagem Finalizada</div>
+                            <div class="state-sub">Esta contagem foi bloqueada remotamente.</div>
+                        </div>`;
+                    return;
+                }
+                dataset = window.currentDocData.dataSet || {};
+                renderSections();
+            });
+
+        } catch (e) {
+            console.error(e);
+            document.getElementById('sections').innerHTML = `
+                <div class="state">
+                    <div class="state-icon">⚠️</div>
+                    <div class="state-title">Erro ao carregar</div>
+                    <div class="state-sub">${e.message}</div>
+                </div>`;
+        }
+    });
+})();
+</script>
+</body>
+</html>
