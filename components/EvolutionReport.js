@@ -158,7 +158,15 @@
                     if (!k.startsWith(`${locKey}_`)) return false;
                     const parts = k.replace(`${locKey}_`, '').split('_');
                     // parts[0]=DD, parts[1]=MM, parts[2]=diaria (optional)
-                    return parts[1] === mm;
+                    if (parts[1] !== mm) return false;
+
+                    const isDailyKey = k.endsWith('_diaria');
+                    if (historyMode === 'diaria') {
+                        if (!isDailyKey) return false;
+                        return Array.isArray(dataSets[k]?.selectedProducts) && dataSets[k].selectedProducts.length > 0;
+                    } else {
+                        return !isDailyKey;
+                    }
                 });
 
                 // Accumulate divergences per product across all counted dates in the month
@@ -213,7 +221,15 @@
                 const locKey = locMap[selectedLocation];
                 const isDailyMode = historyMode === 'diaria';
                 
-                const locationKeys = Object.keys(dataSets).filter(k => k.startsWith(`${locKey}_`) && (isDailyMode ? k.endsWith('_diaria') : !k.endsWith('_diaria')));
+                const locationKeys = Object.keys(dataSets).filter(k => {
+                    if (!k.startsWith(`${locKey}_`)) return false;
+                    if (isDailyMode) {
+                        if (!k.endsWith('_diaria')) return false;
+                        return Array.isArray(dataSets[k]?.selectedProducts) && dataSets[k].selectedProducts.length > 0;
+                    } else {
+                        return !k.endsWith('_diaria');
+                    }
+                });
                 const allDates = locationKeys.map(k => {
                     const parts = k.split('_');
                     return `${parts[1]}/${parts[2]}`; // Reconstruct DD/MM
