@@ -82,7 +82,7 @@
 
                 itemList.forEach(item => {
                     const isGrid = cat.type === 'grid';
-                    const countedTotal = isGrid ? ((parseInt(item.l1)||0) + (parseInt(item.l2)||0) + (parseInt(item.l3)||0) + (parseInt(item.l4)||0)) : (parseInt(item.qtd)||0);
+                    const countedTotal = (parseInt(item.l1)||0) + (parseInt(item.l2)||0) + (parseInt(item.l3)||0) + (parseInt(item.l4)||0) + (parseInt(item.qtd)||0);
                     
                     const wasCounted = item.l1 !== 0 || item.l2 !== 0 || item.l3 !== 0 || item.l4 !== 0 || item.qtd !== 0;
                     if (isDailyCount && !wasCounted) return;
@@ -97,7 +97,7 @@
                     
                     catTotal++;
                     totalExpectedUnits += expected;
-                    const unitValue = catalog?.[item.nome]?.unitValues?.[selectedLocation] || 0;
+                    const unitValue = catalog?.[item.nome]?.unitValues?.[selectedLocation] || catalog?.[item.nome]?.unitValue || 0;
                     totalValue += (countedTotal * unitValue);
                     
                     currentAnalyzedProducts.push({
@@ -252,7 +252,7 @@
                         if (!itemList) return;
                         itemList.forEach(item => {
                             const isGrid = cat.type === 'grid';
-                            const countedTotal = isGrid ? ((parseInt(item.l1)||0) + (parseInt(item.l2)||0) + (parseInt(item.l3)||0) + (parseInt(item.l4)||0)) : (parseInt(item.qtd)||0);
+                            const countedTotal = (parseInt(item.l1)||0) + (parseInt(item.l2)||0) + (parseInt(item.l3)||0) + (parseInt(item.l4)||0) + (parseInt(item.qtd)||0);
                             
                             const wasCounted = item.l1 !== 0 || item.l2 !== 0 || item.l3 !== 0 || item.l4 !== 0 || item.qtd !== 0;
                             if (isDailyMode && !wasCounted) return;

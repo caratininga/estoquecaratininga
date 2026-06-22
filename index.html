@@ -38,8 +38,6 @@
     <!-- SheetJS (XLSX) -->
     <script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"></script>
 
-    <!-- Babel para compilar JSX no navegador (Fixado na versão 7.23.0 para evitar erro de importação do novo JSX runtime) -->
-    <script src="https://unpkg.com/@babel/standalone@7.23.0/babel.min.js"></script>
 
     <style>
         @media print {
@@ -111,10 +109,12 @@
             Activity, AlertTriangle, CheckCircle, Clock, FileText, ChevronLeft, ChevronRight, Share2, Copy, ExternalLink,
             PieChart, Pie, Cell, Tooltip, Legend, BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, LineChart, Line, LabelList
         });
-
         // Sinaliza que React e deps estão prontos
         window.dispatchEvent(new Event('deps-ready'));
     </script>
+    
+    <!-- Babel carregado via defer APÓS o module, garantindo que o React esteja pronto -->
+    <script defer src="https://unpkg.com/@babel/standalone@7.23.0/babel.min.js"></script>
 </head>
 <body class="bg-slate-50 font-sans text-slate-800">
     <div id="root"></div>
@@ -473,7 +473,7 @@
                 if (!data) return [];
                 return data.filter(item => {
                     const isActive = catalog[item.nome]?.active !== false;
-                    const countedTotal = type === "grid" ? ((parseInt(item.l1)||0) + (parseInt(item.l2)||0) + (parseInt(item.l3)||0) + (parseInt(item.l4)||0)) : (parseInt(item.qtd)||0);
+                    const countedTotal = (parseInt(item.l1)||0) + (parseInt(item.l2)||0) + (parseInt(item.l3)||0) + (parseInt(item.l4)||0) + (parseInt(item.qtd)||0);
                     const flow = stockFlowData?.[item.nome] || { entry: 0, exit: 0 };
                     const prevStock = previousStockData?.[item.nome] || 0;
                     const expected = (prevStock + (parseInt(flow.entry)||0)) - (parseInt(flow.exit)||0);
@@ -545,14 +545,14 @@
                             </thead>
                             <tbody className="divide-y divide-slate-100 print:text-xs">
                                 {sortedData.map((item) => {
-                                    const countedTotal = type === "grid" ? (parseInt(item.l1 || 0) + parseInt(item.l2 || 0) + parseInt(item.l3 || 0) + parseInt(item.l4 || 0)) : item.qtd;
+                                    const countedTotal = (parseInt(item.l1)||0) + (parseInt(item.l2)||0) + (parseInt(item.l3)||0) + (parseInt(item.l4)||0) + (parseInt(item.qtd)||0);
                                     const flow = stockFlowData?.[item.nome] || { entry: 0, exit: 0 };
                                     const prevStock = previousStockData?.[item.nome] || 0;
                                     const expected = (prevStock + (flow.entry || 0)) - (flow.exit || 0);
                                     const divergence = hasData ? (countedTotal - expected) : null;
                                     const divColor = divergence === null ? "text-gray-400" : divergence < 0 ? "text-red-600 font-bold bg-red-50 print:bg-transparent" : divergence > 0 ? "text-blue-600 font-bold bg-blue-50 print:bg-transparent" : "text-gray-400";
                                     const displayCode = catalog[item.nome]?.code || item.code || '-';
-                                    const unitValue = catalog[item.nome]?.unitValues?.[selectedLocation] || 0;
+                                    const unitValue = catalog[item.nome]?.unitValues?.[selectedLocation] || catalog[item.nome]?.unitValue || 0;
 
                                     return (
                                         <tr key={item.nome} className="hover:bg-gray-50 transition-colors">
@@ -592,12 +592,12 @@
                                     let totalValueDiv = 0;
 
                                     sortedData.forEach((item) => {
-                                        const countedTotal = type === "grid" ? (parseInt(item.l1 || 0) + parseInt(item.l2 || 0) + parseInt(item.l3 || 0) + parseInt(item.l4 || 0)) : item.qtd;
+                                        const countedTotal = (parseInt(item.l1)||0) + (parseInt(item.l2)||0) + (parseInt(item.l3)||0) + (parseInt(item.l4)||0) + (parseInt(item.qtd)||0);
                                         const flow = stockFlowData?.[item.nome] || { entry: 0, exit: 0 };
                                         const prevStock = previousStockData?.[item.nome] || 0;
                                         const expected = (prevStock + (flow.entry || 0)) - (flow.exit || 0);
                                         const divergence = hasData ? (countedTotal - expected) : null;
-                                        const unitValue = catalog[item.nome]?.unitValues?.[selectedLocation] || 0;
+                                        const unitValue = catalog[item.nome]?.unitValues?.[selectedLocation] || catalog[item.nome]?.unitValue || 0;
 
                                         if (hasData) {
                                             totalCounted += countedTotal;
@@ -635,17 +635,17 @@
     </script>
 
     <!-- LOAD COMPONENTS SEQUENTIALLY -->
-    <script type="text/babel" src="components/LoginModal.js"></script>
-    <script type="text/babel" src="components/CreateCountModal.js?v=2"></script>
-    <script type="text/babel" src="components/Buttons.js"></script>
-    <script type="text/babel" src="components/AnalyzedProductsModal.js"></script>
-    <script type="text/babel" src="components/EvolutionReport.js"></script>
-    <script type="text/babel" src="components/ProductCatalog.js"></script>
-    <script type="text/babel" src="components/CategoryManager.js"></script>
-    <script type="text/babel" src="components/ErrorBoundary.js"></script>
-    <script type="text/babel" src="components/InventoryIntelligence.js?v=2"></script>
-    <script type="text/babel" src="components/MovementsMatrix.js"></script>
-    <script type="text/babel" src="components/App.js?v=6"></script>
+    <script type="text/babel" src="components/LoginModal.js?v=7"></script>
+    <script type="text/babel" src="components/CreateCountModal.js?v=7"></script>
+    <script type="text/babel" src="components/Buttons.js?v=7"></script>
+    <script type="text/babel" src="components/AnalyzedProductsModal.js?v=7"></script>
+    <script type="text/babel" src="components/EvolutionReport.js?v=7"></script>
+    <script type="text/babel" src="components/ProductCatalog.js?v=7"></script>
+    <script type="text/babel" src="components/CategoryManager.js?v=7"></script>
+    <script type="text/babel" src="components/ErrorBoundary.js?v=7"></script>
+    <script type="text/babel" src="components/InventoryIntelligence.js?v=7"></script>
+    <script type="text/babel" src="components/MovementsMatrix.js?v=7"></script>
+    <script type="text/babel" src="components/App.js?v=14"></script>
 
     <script type="text/babel">
         const renderApp = () => {

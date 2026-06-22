@@ -252,6 +252,19 @@
             const handleLogout = async () => { await window.signOut(window.auth); setDataSets({}); setStockFlow({}); customAlert("Desconectado com sucesso."); };
 
             const handleLoadFromCloud = async () => {
+                const sanitizeDataSet = (ds, cats) => {
+                    if (!ds || !cats) return ds;
+                    cats.forEach(cat => {
+                        if (ds[cat.id] && Array.isArray(ds[cat.id])) {
+                            const isGrid = cat.type === 'grid';
+                            ds[cat.id].forEach(item => {
+                                if (isGrid) { item.qtd = 0; }
+                                else { item.l1 = 0; item.l2 = 0; item.l3 = 0; item.l4 = 0; }
+                            });
+                        }
+                    });
+                    return ds;
+                };
                 setIsLoading(true);
                 try {
                     // Try to load from the NEW config
@@ -272,7 +285,7 @@
                         
                         contagensSnap.forEach((doc) => {
                             const countData = doc.data();
-                            loadedDataSets[doc.id] = countData.dataSet || {};
+                            loadedDataSets[doc.id] = sanitizeDataSet(countData.dataSet || {}, configData.categories);
                             loadedStockFlow[doc.id] = countData.stockFlow || {};
                         });
                         
@@ -314,7 +327,7 @@
 
                         // SANITIZE KEYS to remove slashes (prevents Firebase subcollection permission errors)
                         const safeDSets = {};
-                        for (const k of Object.keys(dSets)) { safeDSets[k.replace(/\//g, '_')] = dSets[k]; }
+                        for (const k of Object.keys(dSets)) { safeDSets[k.replace(/\//g, '_')] = sanitizeDataSet(dSets[k], catg); }
                         const safeSFlow = {};
                         for (const k of Object.keys(sFlow)) { safeSFlow[k.replace(/\//g, '_')] = sFlow[k]; }
                         dSets = safeDSets;
@@ -706,6 +719,20 @@
                 const raw = dataSets[currentKey];
                 const baseData = raw ? JSON.parse(JSON.stringify(raw)) : { responsavel: "", unidade: selectedLocation };
 
+                // Sanitize imported data to prevent double counting
+                categories.forEach(cat => {
+                    if (baseData[cat.id]) {
+                        const isGrid = cat.type === 'grid';
+                        baseData[cat.id].forEach(item => {
+                            if (isGrid) {
+                                item.qtd = 0;
+                            } else {
+                                item.l1 = 0; item.l2 = 0; item.l3 = 0; item.l4 = 0;
+                            }
+                        });
+                    }
+                });
+
                 // For daily count: only populate with selected products
                 if (isDailyCount && raw?.selectedProducts) {
                     categories.forEach(cat => {
@@ -1027,8 +1054,7 @@
                         const l2 = row["LOCAL 2"] ? parseInt(row["LOCAL 2"]) : 0;
                         const l3 = row["LOCAL 3"] ? parseInt(row["LOCAL 3"]) : 0;
                         const l4 = row["LOCAL 4"] ? parseInt(row["LOCAL 4"]) : 0;
-                        
-                        const qtd = l1 + l2 + l3 + l4; 
+                        const totalContado = row["TOTAL CONTADO"] ? parseInt(row["TOTAL CONTADO"]) : 0;
 
                         if (produto) {
                             let categoryKey = null;
@@ -1037,14 +1063,15 @@
                             }
 
                             if (categoryKey) {
+                                const isGrid = categories.find(c => c.id === categoryKey)?.type === 'grid';
                                 // Find item in category array
                                 const itemIndex = newDataSet[categoryKey].findIndex(i => i.nome === produto);
                                 if (itemIndex !== -1) {
-                                    newDataSet[categoryKey][itemIndex].l1 = l1;
-                                    newDataSet[categoryKey][itemIndex].l2 = l2;
-                                    newDataSet[categoryKey][itemIndex].l3 = l3;
-                                    newDataSet[categoryKey][itemIndex].l4 = l4;
-                                    newDataSet[categoryKey][itemIndex].qtd = qtd;
+                                    newDataSet[categoryKey][itemIndex].l1 = isGrid ? l1 : 0;
+                                    newDataSet[categoryKey][itemIndex].l2 = isGrid ? l2 : 0;
+                                    newDataSet[categoryKey][itemIndex].l3 = isGrid ? l3 : 0;
+                                    newDataSet[categoryKey][itemIndex].l4 = isGrid ? l4 : 0;
+                                    newDataSet[categoryKey][itemIndex].qtd = isGrid ? 0 : (totalContado || (l1+l2+l3+l4));
                                 }
                             }
                         }
@@ -1084,9 +1111,9 @@
                     if (!itemList) return;
                     itemList.forEach(item => {
                         const isGrid = cat.type === 'grid';
-                        const countedTotal = isGrid ? (parseInt(item.l1 || 0) + parseInt(item.l2 || 0) + parseInt(item.l3 || 0) + parseInt(item.l4 || 0)) : parseInt(item.qtd || 0);
+                        const countedTotal = (parseInt(item.l1)||0) + (parseInt(item.l2)||0) + (parseInt(item.l3)||0) + (parseInt(item.l4)||0) + (parseInt(item.qtd)||0);
                         if (viewMode === 'control') {
-                            const flow = currentFlowData?.[cat.id]?.[item.nome] || { entry: 0, exit: 0 };
+                            const flow = isDailyCount ? (currentFlowData?.[cat.id]?.[item.nome] || { entry: 0, exit: 0 }) : (effectiveFlowData?.[item.nome] || { entry: 0, exit: 0 });
                             const prevStock = previousStockData?.[item.nome] || 0;
                             const expected = (prevStock + parseInt(flow.entry || 0)) - parseInt(flow.exit || 0);
                             const divergence = countedTotal - expected;
@@ -1137,30 +1164,32 @@
 
                 items.forEach(item => {
                     const isGrid = cat.type === 'grid';
-                    const countedTotal = isGrid ? ((parseInt(item.l1)||0) + (parseInt(item.l2)||0) + (parseInt(item.l3)||0) + (parseInt(item.l4)||0)) : (parseInt(item.qtd)||0);
+                    const countedTotal = (parseInt(item.l1)||0) + (parseInt(item.l2)||0) + (parseInt(item.l3)||0) + (parseInt(item.l4)||0) + (parseInt(item.qtd)||0);
                     totalItemsContados += countedTotal;
                     
-                    const unitValue = productCatalog[item.nome]?.unitValues?.[selectedLocation] || 0;
+                    const unitValue = productCatalog[item.nome]?.unitValues?.[selectedLocation] || productCatalog[item.nome]?.unitValue || 0;
                     valorTotalContado += (countedTotal * unitValue);
 
-                    if (viewMode === 'control') {
-                        const catFlow = isDailyCount ? effectiveFlowData[cat.id] : currentFlowData[cat.id];
-                        const flow = catFlow?.[item.nome] || { entry: 0, exit: 0 };
-                        const prevStock = previousStockData?.[item.nome] || 0;
-                        const expected = (prevStock + (parseInt(flow.entry)||0)) - (parseInt(flow.exit)||0);
+                        if (viewMode === 'control') {
+                            const flow = effectiveFlowData?.[item.nome] || { entry: 0, exit: 0 };
+                            const prevStock = previousStockData?.[item.nome] || 0;
+                            const expected = (prevStock + (parseInt(flow.entry)||0)) - (parseInt(flow.exit)||0);
                         const divergence = countedTotal - expected;
+                        const financialDivergence = divergence * unitValue;
+                        
                         if (divergence !== 0) {
-                                totalDivergencias++;
-                                totalUnidadesDivergenciaNet += divergence;
-                                totalValorDivergenciaNet += (divergence * unitValue);
-                                if (divergence > 0) {
-                                    totalPositivas++;
-                                    valorDivergenciaPositiva += (divergence * unitValue);
-                                } else {
-                                    totalNegativas++;
-                                    valorDivergenciaNegativa += (Math.abs(divergence) * unitValue);
-                                }
+                            totalDivergencias++;
+                            totalUnidadesDivergenciaNet += divergence;
+                            totalValorDivergenciaNet += financialDivergence;
+                            
+                            if (divergence > 0) {
+                                totalPositivas += divergence;
+                                valorDivergenciaPositiva += financialDivergence;
+                            } else {
+                                totalNegativas += Math.abs(divergence);
+                                valorDivergenciaNegativa += Math.abs(financialDivergence);
                             }
+                        }
                         }
                     });
                 });
@@ -1566,7 +1595,7 @@
                                         </div>
                                         <div>
                                             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">Sobras (Positivas)</p>
-                                            <h4 className="text-2xl font-bold text-blue-700">{totalPositivas.toLocaleString('pt-BR')} <span className="text-sm font-medium text-blue-400">itens</span></h4>
+                                            <h4 className="text-2xl font-bold text-blue-700">{totalPositivas.toLocaleString('pt-BR')} <span className="text-sm font-medium text-blue-400">un</span></h4>
                                             <p className="text-xs font-bold text-blue-600 mt-0.5">+ R$ {valorDivergenciaPositiva.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</p>
                                         </div>
                                     </div>
@@ -1577,7 +1606,7 @@
                                         </div>
                                         <div>
                                             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">Faltas (Negativas)</p>
-                                            <h4 className="text-2xl font-bold text-red-700">{totalNegativas.toLocaleString('pt-BR')} <span className="text-sm font-medium text-red-400">itens</span></h4>
+                                            <h4 className="text-2xl font-bold text-red-700">{totalNegativas.toLocaleString('pt-BR')} <span className="text-sm font-medium text-red-400">un</span></h4>
                                             <p className="text-xs font-bold text-red-600 mt-0.5">- R$ {valorDivergenciaNegativa.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</p>
                                         </div>
                                     </div>
