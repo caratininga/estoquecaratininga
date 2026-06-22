@@ -443,13 +443,28 @@
         }
 
         /* Update the running total cell for this row (grid only) */
+        let tot = val;
+        const safeId = `${catId}__${nome}`.replace(/[^a-z0-9]/gi, '_');
         if (field !== 'qtd') {
-            const safeId = `${catId}__${nome}`.replace(/[^a-z0-9]/gi, '_');
             const totEl  = document.getElementById('tot_' + safeId);
             if (totEl) {
-                const tot = gridTotal(dataset[catId][idx]);
+                tot = gridTotal(dataset[catId][idx]);
                 totEl.textContent = tot;
                 totEl.className   = `td-total${tot === 0 ? ' zero-val' : ''}`;
+            }
+        }
+
+        const difEl = document.getElementById('dif_' + safeId);
+        if (difEl && window.showExpected) {
+            const expectedVal = window.currentDocData?.previstos?.[nome];
+            if (expectedVal !== undefined) {
+                const exp = parseInt(expectedVal);
+                const dif = tot - exp;
+                let difClass = 'td-diff text-gray-400';
+                if (dif > 0) difClass = 'td-diff text-blue-600 font-bold';
+                else if (dif < 0) difClass = 'td-diff text-red-500 font-bold';
+                difEl.className = difClass;
+                difEl.textContent = dif > 0 ? '+' + dif : dif;
             }
         }
 
@@ -477,8 +492,11 @@
         if (!container || !dataset) return;
 
         const html = CATS.map(cat => {
-            const items = dataset[cat.id];
-            if (!items || items.length === 0) return '';
+            const rawItems = dataset[cat.id];
+            if (!rawItems || rawItems.length === 0) return '';
+
+            // Sort items alphabetically by nome
+            const items = [...rawItems].sort((a, b) => a.nome.localeCompare(b.nome));
 
             // Detect actual type from first item's stored fields
             const isGrid = itemIsGrid(items[0]);
@@ -488,23 +506,23 @@
                 if (window.currentMode === 1) {
                     thead = `<tr>
                         <th class="th-name">Produto</th>
-                        ${window.showExpected ? '<th class="th-prev">Teórico</th>' : ''}
                         <th>Loc 1</th><th>Loc 2</th><th>Loc 3</th><th>Loc 4</th>
                         <th class="th-total">Total</th>
+                        ${window.showExpected ? '<th class="th-prev">Teórico</th><th class="th-diff">Dif.</th>' : ''}
                     </tr>`;
                 } else if (window.currentMode === 2) {
                     thead = `<tr>
                         <th class="th-name">Produto</th>
-                        ${window.showExpected ? '<th class="th-prev">Teórico</th>' : ''}
                         <th>Loc ${window.currentCol}</th>
                         <th class="th-total">Acumulado</th>
+                        ${window.showExpected ? '<th class="th-prev">Teórico</th><th class="th-diff">Dif.</th>' : ''}
                     </tr>`;
                 }
             } else {
                 thead = `<tr>
                     <th class="th-name">Produto</th>
-                    ${window.showExpected ? '<th class="th-prev">Teórico</th>' : ''}
                     <th class="th-total">Quantidade</th>
+                    ${window.showExpected ? '<th class="th-prev">Teórico</th><th class="th-diff">Dif.</th>' : ''}
                 </tr>`;
             }
 
@@ -518,40 +536,69 @@
                     const isZ = tot === 0;
                     
                     let rowHtml = `<td class="td-name">${item.nome}</td>`;
-                    if (window.showExpected) {
-                        const expectedVal = window.currentDocData?.previstos?.[item.nome];
-                        rowHtml += `<td class="td-prev">${expectedVal !== undefined ? expectedVal : '-'}</td>`;
-                    }
 
+                    let inputsHtml = '';
                     if (window.currentMode === 1) {
-                        const inp = ['l1','l2','l3','l4'].map(f => {
+                        inputsHtml = ['l1','l2','l3','l4'].map(f => {
                             const v = parseInt(item[f]) || 0;
                             return `<td><input class="num${v>0?' filled':''}" type="number" min="0" value="${v===0?'':v}" oninput="setVal('${cat.id}','${safeName}','${f}',this.value,this)" onchange="setVal('${cat.id}','${safeName}','${f}',this.value,this)"/></td>`;
                         }).join('');
-                        rowHtml += inp + `<td class="td-total${isZ?' zero-val':''}" id="tot_${safeId}">${tot}</td>`;
                     } else if (window.currentMode === 2) {
                         const f = `l${window.currentCol}`;
                         const v = parseInt(item[f]) || 0;
-                        const inp = `<td><input class="num${v>0?' filled':''}" type="number" min="0" value="${v===0?'':v}" oninput="setVal('${cat.id}','${safeName}','${f}',this.value,this)" onchange="setVal('${cat.id}','${safeName}','${f}',this.value,this)"/></td>`;
-                        rowHtml += inp + `<td class="td-total${isZ?' zero-val':''}" id="tot_${safeId}">${tot}</td>`;
+                        inputsHtml = `<td><input class="num${v>0?' filled':''}" type="number" min="0" value="${v===0?'':v}" oninput="setVal('${cat.id}','${safeName}','${f}',this.value,this)" onchange="setVal('${cat.id}','${safeName}','${f}',this.value,this)"/></td>`;
+                    }
+                    
+                    rowHtml += inputsHtml + `<td class="td-total${isZ?' zero-val':''}" id="tot_${safeId}">${tot}</td>`;
+
+                    if (window.showExpected) {
+                        const expectedVal = window.currentDocData?.previstos?.[item.nome];
+                        const exp = expectedVal !== undefined ? parseInt(expectedVal) : null;
+                        const expText = exp !== null ? exp : '-';
+                        
+                        let difHtml = `<td class="td-diff" id="dif_${safeId}">-</td>`;
+                        if (exp !== null) {
+                            const dif = tot - exp;
+                            let difClass = 'text-gray-400';
+                            if (dif > 0) difClass = 'text-blue-600 font-bold';
+                            else if (dif < 0) difClass = 'text-red-500 font-bold';
+                            const difSign = dif > 0 ? '+' : '';
+                            difHtml = `<td class="td-diff ${difClass}" id="dif_${safeId}">${difSign}${dif}</td>`;
+                        }
+                        rowHtml += `<td class="td-prev">${expText}</td>` + difHtml;
                     }
 
                     return `<tr class="${isZ ? 'zero' : ''}">${rowHtml}</tr>`;
                 } else {
                     const v  = parseInt(item.qtd) || 0;
                     const isZ = v === 0;
-                    const expectedVal = window.currentDocData?.previstos?.[item.nome];
-                    let prevHtml = window.showExpected ? `<td class="td-prev">${expectedVal !== undefined ? expectedVal : '-'}</td>` : '';
-                    return `<tr class="${isZ ? 'zero' : ''}">
-                        <td class="td-name">${item.nome}</td>
-                        ${prevHtml}
-                        <td class="td-total${isZ?' zero-val':''}">
+                    
+                    let rowHtml = `<td class="td-name">${item.nome}</td>`;
+                    rowHtml += `<td class="td-total${isZ?' zero-val':''}">
                             <input class="num qty${v>0?' filled':''}" type="number" min="0"
                                 value="${v===0?'':v}"
                                 oninput="setVal('${cat.id}','${safeName}','qtd',this.value,this)"
                                 onchange="setVal('${cat.id}','${safeName}','qtd',this.value,this)"/>
-                        </td>
-                    </tr>`;
+                        </td>`;
+                    
+                    if (window.showExpected) {
+                        const expectedVal = window.currentDocData?.previstos?.[item.nome];
+                        const exp = expectedVal !== undefined ? parseInt(expectedVal) : null;
+                        const expText = exp !== null ? exp : '-';
+                        
+                        let difHtml = `<td class="td-diff" id="dif_${safeId}">-</td>`;
+                        if (exp !== null) {
+                            const dif = v - exp;
+                            let difClass = 'text-gray-400';
+                            if (dif > 0) difClass = 'text-blue-600 font-bold';
+                            else if (dif < 0) difClass = 'text-red-500 font-bold';
+                            const difSign = dif > 0 ? '+' : '';
+                            difHtml = `<td class="td-diff ${difClass}" id="dif_${safeId}">${difSign}${dif}</td>`;
+                        }
+                        rowHtml += `<td class="td-prev">${expText}</td>` + difHtml;
+                    }
+
+                    return `<tr class="${isZ ? 'zero' : ''}">${rowHtml}</tr>`;
                 }
             }).join('');
 
